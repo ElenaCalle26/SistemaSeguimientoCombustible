@@ -1,0 +1,435 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+:root {
+  font-family: Manrope, Arial, sans-serif;
+  color: #15201b;
+  background: #f5f6f4;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+}
+
+aside {
+  width: 250px;
+  background: #11251e;
+  color: #eef5f0;
+  padding: 30px 18px;
+  display: flex;
+  flex-direction: column;
+}
+
+.brand {
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 20px;
+}
+
+.brand svg {
+  color: #b8e06e;
+}
+
+nav {
+  margin-top: 56px;
+  display: grid;
+  gap: 8px;
+}
+
+nav button,
+.profile button,
+.demo-chip,
+.secondary {
+  border: 0;
+  background: none;
+  color: #b8c8bf;
+  text-align: left;
+  font: 600 14px inherit;
+  padding: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+nav button.active,
+nav button:hover {
+  background: #234536;
+  color: #fff;
+}
+
+.profile {
+  margin-top: auto;
+  border-top: 1px solid #294336;
+  padding: 20px 5px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profile .avatar {
+  background: #b8e06e;
+  color: #11251e;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.profile div:nth-child(2) {
+  display: grid;
+  flex: 1;
+  font-size: 12px;
+}
+
+.profile small {
+  color: #9eb4a8;
+}
+
+.content {
+  flex: 1;
+  padding: 48px clamp(25px, 5vw, 76px);
+  max-width: 1550px;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 36px;
+  gap: 16px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+.eyebrow {
+  font: 500 11px 'DM Mono';
+  color: #728078;
+  letter-spacing: 1.2px;
+}
+
+.content h1 {
+  font-size: 31px;
+  margin: 8px 0;
+}
+
+.muted,
+.panelhead p,
+.login section p,
+.login form small {
+  color: #748078;
+  font-size: 14px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.card,
+.panel {
+  background: #fff;
+  border: 1px solid #e6eae6;
+  border-radius: 14px;
+}
+
+.card {
+  padding: 22px;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+}
+
+.card span {
+  display: block;
+  font-size: 12px;
+  color: #748078;
+  margin-bottom: 9px;
+}
+
+.card strong {
+  font-size: 27px;
+}
+
+.card svg {
+  color: #4c7060;
+}
+
+.card.warning svg {
+  color: #bd7d26;
+}
+
+.panel {
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.panelhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  padding: 24px 26px;
+  border-bottom: 1px solid #edf0ed;
+  gap: 12px;
+}
+
+.panelhead h2 {
+  font-size: 16px;
+  margin-bottom: 5px;
+}
+
+.panelhead svg {
+  color: #638070;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+th {
+  text-align: left;
+  color: #78847c;
+  font: 500 11px 'DM Mono';
+  letter-spacing: .3px;
+  background: #fafbfa;
+}
+
+th,
+td {
+  padding: 16px 26px;
+  border-bottom: 1px solid #edf0ed;
+}
+
+td {
+  color: #35433b;
+}
+
+.empty {
+  text-align: center;
+  padding: 38px;
+  color: #7f8b83;
+}
+
+.primary,
+form button,
+.secondary,
+.demo-chip {
+  background: #183a2b;
+  color: white;
+  border: 0;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font: 600 13px inherit;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  cursor: pointer;
+  justify-content: center;
+}
+
+.secondary,
+.demo-chip {
+  background: #e9efea;
+  color: #183a2b;
+}
+
+.tag {
+  font: 500 10px 'DM Mono';
+  padding: 5px 8px;
+  border-radius: 4px;
+  background: #f1f2ef;
+  color: #6d766f;
+}
+
+.tag.PENDING {
+  background: #fff3df;
+  color: #9b6416;
+}
+
+.tag.IN_REVIEW {
+  background: #e5f0ff;
+  color: #276499;
+}
+
+.tag.RESOLVED {
+  background: #e1f3e7;
+  color: #277345;
+}
+
+.tag.DISMISSED {
+  background: #f1f2ef;
+  color: #58615b;
+}
+
+.login {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1.3fr .7fr;
+  background: #11251e;
+  color: #f5faf6;
+}
+
+.login section {
+  padding: 15vh 12vw;
+}
+
+.login h1 {
+  font-size: clamp(40px, 7vw, 80px);
+  line-height: 1.05;
+  margin: 70px 0 20px;
+  max-width: 650px;
+}
+
+.login section p {
+  color: #aec0b6;
+  max-width: 470px;
+}
+
+.login form {
+  background: #fff;
+  color: #15201b;
+  padding: 15vh 60px;
+  display: grid;
+  align-content: center;
+  gap: 14px;
+}
+
+.login form h2 {
+  margin-bottom: 16px;
+}
+
+.login label {
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  gap: 7px;
+}
+
+.login input,
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
+  border: 1px solid #dce3dd;
+  border-radius: 7px;
+  padding: 12px;
+  font: 14px inherit;
+  width: 100%;
+}
+
+.login form button {
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.demo-list {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.demo-chip {
+  border: 1px solid #2f4d40;
+}
+
+.form-card {
+  margin-top: 18px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 24px 26px 28px;
+}
+
+.form-grid label {
+  font-size: 12px;
+  font-weight: 700;
+  display: grid;
+  gap: 7px;
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.section-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error {
+  color: #b43c35;
+}
+
+@media (max-width: 850px) {
+  aside {
+    width: 72px;
+    padding: 24px 10px;
+  }
+
+  .brand {
+    font-size: 0;
+  }
+
+  .brand svg {
+    width: 27px;
+    height: 27px;
+  }
+
+  nav button {
+    font-size: 0;
+    justify-content: center;
+  }
+
+  .profile div:nth-child(2),
+  .profile button {
+    display: none;
+  }
+
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .content {
+    padding: 35px 22px;
+  }
+
+  .login {
+    grid-template-columns: 1fr;
+  }
+
+  .login section {
+    padding: 60px 35px;
+  }
+
+  .login form {
+    padding: 50px 35px;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
