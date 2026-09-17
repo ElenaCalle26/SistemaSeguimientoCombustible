@@ -7,10 +7,12 @@ Prototipo académico para centralizar el registro, la consulta y el seguimiento 
 ## Funcionalidades
 
 - Autenticación con JWT y perfiles `ADMIN`, `OPERATOR` y `SUPERVISOR`.
-- Gestión de vehículos y estaciones de servicio.
-- Registro y consulta filtrable de operaciones de carguío.
-- Reglas explicables para volumen elevado, carguíos muy próximos y uso de múltiples estaciones.
-- Casos de revisión con estado y conclusión manual.
+- Multiinstitución con aislamiento backend y estaciones asignadas a cada sesión.
+- Solo tres roles: `ADMIN`, `SUPERVISOR` y `OPERATOR`; ADMIN administra pero no registra carguíos.
+- Vehículos sintéticos precargados con campos B-SISA simulados y RFID opcional.
+- Combustibles autorizados por estación, operaciones con estación fija de sesión y paginación/filtros.
+- Alertas explicables (volumen, intervalo, entre estaciones y tercer carguío prioritario), casos con bitácora y SMTP opcional.
+- Auditoría append-only consultable por ADMIN (`/api/audit`).
 - Panel React minimalista y responsivo.
 - Esquema SQL PostgreSQL listo para importar.
 
@@ -35,7 +37,7 @@ Credenciales demo:
 - `operador@fueltrack.local` / `Operador123!`
 - `supervisor@fueltrack.local` / `Supervisor123!`
 
-Las cuentas demo se crean automáticamente en el primer inicio de sesión; cámbialas o elimínalas antes de cualquier uso no local.
+Las cuentas demo y el tenant sintético se crean automáticamente en el primer inicio de sesión; cámbialas o elimínalas antes de cualquier uso no local.
 
 ## Ejecución local
 
@@ -55,8 +57,14 @@ Configura `DATABASE_URL` en `backend/.env` con tus credenciales PostgreSQL. No s
 | GET | `/api/dashboard` | Indicadores y actividad | Todos |
 | GET/POST | `/api/vehicles` | Consulta/crea vehículos | Todos / Admin, Supervisor |
 | GET/POST | `/api/stations` | Consulta/crea estaciones | Todos / Admin, Supervisor |
-| GET/POST | `/api/operations` | Consulta/registra operaciones | Todos / Admin, Operator |
+| GET/POST | `/api/operations` | Consulta/registra operaciones (estación de sesión) | Todos / Supervisor, Operator |
 | GET/PATCH | `/api/cases` | Seguimiento de casos | Admin, Supervisor |
+| GET | `/api/alerts` | Alertas y tercer carguío prioritario | Admin, Supervisor |
+| GET | `/api/audit` | Bitácora inmutable | Admin |
+| GET/POST | `/api/users`, `/api/user-stations` | Usuarios y asignaciones | Admin |
+| GET/POST | `/api/stations/{id}/fuel-authorizations` | Combustibles permitidos por estación | Todos / Admin |
+
+Usa `Authorization: Bearer <token>` en rutas protegidas. La documentación interactiva está en `/docs`.
 
 Usa `Authorization: Bearer <token>` en rutas protegidas. La documentación interactiva está en `/docs`.
 
@@ -76,7 +84,8 @@ Los umbrales están inicializados en `tracking_rules`: más de 120 litros en una
 - Usa secretos distintos por entorno y HTTPS en producción.
 - No ingreses nombres de propietarios, documentos de identidad, fotos o información oficial confidencial.
 - Usa copias de seguridad, usuarios de mínimo privilegio y una red restringida para PostgreSQL.
-- Antes de producción, añade auditoría, pruebas de integración, gestión de usuarios, limitación de tasa y revisión de seguridad.
+- SMTP es opcional: configura `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` y `ALERT_RECIPIENT` para notificar el tercer carguío prioritario. Si no se configura, la alerta permanece disponible en la API.
+La exportación PDF no se incorpora para mantener el contenedor liviano; los endpoints paginados entregan los datos necesarios para reportes.
 
 ## Licencia
 

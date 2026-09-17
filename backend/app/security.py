@@ -14,7 +14,13 @@ def hash_password(value: str): return pwd_context.hash(value)
 def verify_password(value: str, hashed: str): return pwd_context.verify(value, hashed)
 def create_token(user: User):
     settings = get_settings()
-    payload = {'sub': str(user.id), 'role': user.role, 'exp': datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)}
+    payload = {
+        'sub': str(user.id),
+        'role': user.role,
+        'institution_id': str(user.institution_id) if user.institution_id else None,
+        'station_id': str(user.fixed_station_id) if user.fixed_station_id else None,
+        'exp': datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes),
+    }
     return jwt.encode(payload, settings.secret_key, algorithm='HS256')
 def current_user(credentials: HTTPAuthorizationCredentials = Depends(bearer), db: Session = Depends(get_db)):
     try: user_id = jwt.decode(credentials.credentials, get_settings().secret_key, algorithms=['HS256'])['sub']

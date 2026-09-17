@@ -23,6 +23,11 @@ services:
       SECRET_KEY: ${SECRET_KEY:-development-only-change-me}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      ALERT_RECIPIENT: ${ALERT_RECIPIENT:-}
     ports:
       - "8000:8000"
     depends_on:

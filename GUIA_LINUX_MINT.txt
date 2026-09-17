@@ -1,0 +1,336 @@
+GUIA PARA EJECUTAR FUELTRACK EN LINUX MINT 22.3
+================================================
+
+Esta guía está pensada para Linux Mint 22.3, basado en Ubuntu 24.04 Noble.
+Se utiliza Docker Engine y Docker Compose. No es necesario instalar Python,
+Node.js ni PostgreSQL por separado.
+
+
+1. ABRIR LA TERMINAL
+---------------------
+
+Presiona:
+
+Ctrl + Alt + T
+
+
+2. ELIMINAR VERSIONES ANTIGUAS DE DOCKER
+-----------------------------------------
+
+Ejecuta:
+
+sudo apt remove -y docker.io docker-doc docker-compose podman-docker containerd runc
+
+Si aparece un mensaje indicando que algún paquete no estaba instalado,
+puedes continuar.
+
+
+3. INSTALAR REQUISITOS
+----------------------
+
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg git
+
+
+4. AGREGAR LA CLAVE OFICIAL DE DOCKER
+-------------------------------------
+
+sudo install -m 0755 -d /etc/apt/keyrings
+
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+  -o /etc/apt/keyrings/docker.asc
+
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+
+5. AGREGAR EL REPOSITORIO DE DOCKER PARA NOBLE
+----------------------------------------------
+
+Linux Mint 22.3 utiliza la base Ubuntu 24.04 Noble. Ejecuta exactamente:
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+
+6. INSTALAR DOCKER ENGINE Y DOCKER COMPOSE
+-------------------------------------------
+
+sudo apt update
+
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+
+7. INICIAR DOCKER
+-----------------
+
+sudo systemctl enable --now docker
+
+Comprueba el estado:
+
+sudo systemctl status docker
+
+Debe aparecer:
+
+Active: active (running)
+
+Presiona q para salir de esa pantalla.
+
+
+8. USAR DOCKER SIN SUDO
+-----------------------
+
+Ejecuta:
+
+sudo usermod -aG docker "$USER"
+
+Cierra la sesión de Linux Mint y vuelve a entrar. También puedes reiniciar:
+
+sudo reboot
+
+Después de iniciar sesión nuevamente, prueba:
+
+docker run hello-world
+
+Comprueba Docker Compose:
+
+docker compose version
+
+Si aparece "permission denied", cierra sesión y vuelve a entrar para que
+se aplique el grupo docker.
+
+NOTA DE SEGURIDAD:
+Los usuarios del grupo docker tienen permisos equivalentes a root.
+No agregues usuarios no confiables a ese grupo.
+
+
+9. CLONAR EL PROYECTO
+---------------------
+
+Puedes guardarlo en tu carpeta personal:
+
+cd ~
+
+git clone https://github.com/ElenaCalle26/SistemaSeguimientoCombustible.git
+
+cd SistemaSeguimientoCombustible
+
+Comprueba los archivos:
+
+ls
+
+Debes ver, entre otros:
+
+backend
+database
+frontend
+docker-compose.yml
+README.md
+.env.example
+
+
+10. CREAR LA CONFIGURACION LOCAL
+--------------------------------
+
+Copia el archivo de ejemplo:
+
+cp .env.example .env
+
+Edita el archivo:
+
+nano .env
+
+Para una instalación local puedes utilizar:
+
+POSTGRES_DB=combustible_db
+POSTGRES_USER=combustible_user
+POSTGRES_PASSWORD=ClavePostgres2026
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql+psycopg://combustible_user:ClavePostgres2026@db:5432/combustible_db
+SECRET_KEY=ClaveSecretaLargaSoloParaEsteEquipo2026
+ACCESS_TOKEN_EXPIRE_MINUTES=480
+CORS_ORIGINS=http://localhost:5173
+
+Es recomendable cambiar POSTGRES_PASSWORD y SECRET_KEY por valores privados.
+
+Para evitar problemas con DATABASE_URL, utiliza inicialmente una contraseña
+que contenga únicamente letras y números. Si utilizas caracteres como @, #,
+/, : o espacios, debes codificarlos dentro de la URL.
+
+En nano:
+
+Ctrl + O  Guarda el archivo
+Enter     Confirma el nombre
+Ctrl + X  Sale del editor
+
+
+11. CREAR LA BASE DE DATOS E INICIAR LOS SERVICIOS
+--------------------------------------------------
+
+No es necesario crear la base de datos manualmente con pgAdmin.
+
+Ejecuta:
+
+docker compose up -d --build
+
+Docker realizará automáticamente estas acciones:
+
+- Descargará las imágenes necesarias.
+- Creará el contenedor de PostgreSQL.
+- Creará la base combustible_db.
+- Creará el usuario combustible_user.
+- Ejecutará database/schema.sql.
+- Creará las tablas y los tipos de combustible.
+- Construirá la API.
+- Construirá el frontend.
+- Iniciará los servicios.
+
+La primera ejecución puede tardar varios minutos.
+
+
+12. COMPROBAR EL ESTADO
+-----------------------
+
+docker compose ps
+
+Debes ver tres servicios:
+
+db   Up ... (healthy)
+api  Up
+web  Up
+
+Comprueba la API:
+
+curl http://localhost:8000/health
+
+Respuesta esperada:
+
+{"status":"ok"}
+
+
+13. ABRIR LA APLICACION
+-----------------------
+
+Abre en el navegador:
+
+http://localhost:5173
+
+Usuarios demo:
+
+Administrador:
+Correo: admin@fueltrack.local
+Contraseña: Cambiar123!
+
+Operador:
+Correo: operador@fueltrack.local
+Contraseña: Operador123!
+
+Supervisor:
+Correo: supervisor@fueltrack.local
+Contraseña: Supervisor123!
+
+La documentación interactiva de la API está en:
+
+http://localhost:8000/docs
+
+
+14. COMPROBAR LOS DATOS DE POSTGRESQL
+-------------------------------------
+
+Ver las tablas:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c '\dt'
+
+Ver vehículos:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c 'SELECT * FROM vehicles;'
+
+Ver estaciones:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c 'SELECT * FROM stations;'
+
+Ver operaciones:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c 'SELECT * FROM fuel_operations;'
+
+Ver usuarios:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c 'SELECT full_name, email, role, is_active FROM users;'
+
+
+15. DETENER Y VOLVER A INICIAR
+------------------------------
+
+Detener los servicios sin borrar los datos:
+
+docker compose down
+
+Volver a iniciarlos:
+
+docker compose up -d
+
+Actualizar el código desde GitHub y reconstruir:
+
+git pull
+docker compose up -d --build
+
+
+16. VER LOGS
+------------
+
+Logs de la API:
+
+docker compose logs -f api
+
+Logs de PostgreSQL:
+
+docker compose logs -f db
+
+Logs del frontend:
+
+docker compose logs -f web
+
+Para detener la visualización de logs presiona Ctrl + C.
+
+
+17. IMPORTANTE SOBRE LOS DATOS
+------------------------------
+
+Los datos se guardan en un volumen Docker.
+
+Este comando conserva los datos:
+
+docker compose down
+
+NO ejecutes este comando si quieres conservar la base de datos:
+
+docker compose down -v
+
+El comando "down -v" elimina el volumen de PostgreSQL y borra los datos.
+
+
+18. SOLUCION DE PROBLEMAS
+-------------------------
+
+Si Docker no responde:
+
+sudo systemctl restart docker
+
+Si aparece "permission denied":
+
+sudo usermod -aG docker "$USER"
+
+Después cierra sesión y vuelve a entrar.
+
+Si cambiaste requirements.txt:
+
+docker compose up -d --build api
+
+Si cambiaste el frontend:
+
+docker compose up -d --build web
+
+Si la web no muestra los cambios, recarga el navegador con:
+
+Ctrl + F5
+
+
+FIN DE LA GUIA
