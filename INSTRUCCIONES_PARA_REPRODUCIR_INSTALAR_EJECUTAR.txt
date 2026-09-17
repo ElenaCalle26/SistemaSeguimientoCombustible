@@ -1,0 +1,521 @@
+INSTRUCCIONES PARA REPRODUCIR, INSTALAR O EJECUTAR EL AVANCE
+==============================================================
+
+Proyecto: FuelTrack
+Repositorio:
+https://github.com/ElenaCalle26/SistemaSeguimientoCombustible
+
+Estas instrucciones explican como instalar y ejecutar el avance usando
+Docker Compose. Es la forma recomendada porque instala y conecta
+automaticamente PostgreSQL, FastAPI y React/Nginx.
+
+El proyecto utiliza datos sinteticos. No se conecta a B-SISA, ANH, Gmail
+ni a estaciones reales.
+
+
+1. REQUISITOS
+-------------
+
+Se necesita:
+
+- Docker Engine.
+- Docker Compose v2, disponible como comando "docker compose".
+- Git.
+- Conexion a Internet durante la primera instalacion.
+- Al menos 4 GB de RAM disponibles para Docker.
+
+No es necesario instalar por separado Python, Node.js ni PostgreSQL cuando
+se utiliza Docker.
+
+
+2. INSTALACION EN LINUX MINT 22.3
+---------------------------------
+
+Linux Mint 22.3 esta basado en Ubuntu 24.04 Noble. Abrir una terminal con:
+
+Ctrl + Alt + T
+
+Eliminar paquetes antiguos si existen:
+
+sudo apt remove -y docker.io docker-doc docker-compose podman-docker containerd runc
+
+Instalar herramientas basicas:
+
+sudo apt update
+sudo apt install -y ca-certificates curl gnupg git
+
+Agregar la clave oficial de Docker:
+
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+Agregar el repositorio para Noble:
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+Instalar Docker Engine y Compose:
+
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+Iniciar Docker:
+
+sudo systemctl enable --now docker
+
+Para ejecutar Docker sin escribir sudo:
+
+sudo usermod -aG docker "$USER"
+
+Cerrar la sesion de Linux Mint y volver a iniciar sesion. Como alternativa:
+
+sudo reboot
+
+Comprobar:
+
+docker run hello-world
+docker compose version
+
+
+3. INSTALACION EN WINDOWS
+--------------------------
+
+1. Instalar Docker Desktop:
+   https://www.docker.com/products/docker-desktop/
+2. Iniciar Docker Desktop y esperar a que indique que Docker esta activo.
+3. Instalar Git:
+   https://git-scm.com/downloads
+4. Abrir PowerShell.
+5. Continuar con la clonacion del proyecto de la siguiente seccion.
+
+
+4. DESCARGAR EL PROYECTO
+-------------------------
+
+Linux:
+
+cd ~
+git clone https://github.com/ElenaCalle26/SistemaSeguimientoCombustible.git
+cd SistemaSeguimientoCombustible
+
+Windows PowerShell:
+
+cd "$HOME\Desktop"
+git clone https://github.com/ElenaCalle26/SistemaSeguimientoCombustible.git
+cd .\SistemaSeguimientoCombustible
+
+Comprobar que existen estos elementos:
+
+backend
+database
+frontend
+docker-compose.yml
+.env.example
+README.md
+
+
+5. CREAR LA CONFIGURACION LOCAL
+--------------------------------
+
+No se debe modificar ni subir ".env.example" con secretos reales.
+Crear una copia local llamada ".env".
+
+Linux:
+
+cp .env.example .env
+nano .env
+
+Windows PowerShell:
+
+Copy-Item .env.example .env
+notepad .env
+
+Configuracion minima recomendada para Docker:
+
+POSTGRES_DB=combustible_db
+POSTGRES_USER=combustible_user
+POSTGRES_PASSWORD=ClavePostgres2026
+POSTGRES_PORT=5432
+DATABASE_URL=postgresql+psycopg://combustible_user:ClavePostgres2026@db:5432/combustible_db
+SECRET_KEY=crear-una-clave-larga-y-privada
+ACCESS_TOKEN_EXPIRE_MINUTES=480
+CORS_ORIGINS=http://localhost:5173
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+ALERT_RECIPIENT=
+
+La contraseña de PostgreSQL usada en POSTGRES_PASSWORD debe coincidir con
+la contraseña incluida en DATABASE_URL.
+
+Para generar una SECRET_KEY segura en Linux:
+
+openssl rand -hex 32
+
+Si la contraseña de PostgreSQL contiene caracteres especiales como @, #,
+/, :, espacios o %, debe codificarse dentro de DATABASE_URL. Para evitar
+errores durante una primera instalacion se recomienda usar letras y numeros.
+
+No publicar el archivo ".env".
+
+
+6. CREAR LA BASE DE DATOS E INICIAR EL SISTEMA
+----------------------------------------------
+
+No es necesario crear manualmente la base de datos con pgAdmin.
+PostgreSQL se crea dentro del contenedor.
+
+Ejecutar desde la carpeta raiz del proyecto:
+
+docker compose up -d --build
+
+Este comando:
+
+- Descarga las imagenes necesarias.
+- Crea o inicia PostgreSQL.
+- Crea la base combustible_db.
+- Ejecuta database/schema.sql en una base nueva.
+- Construye la API FastAPI.
+- Construye el frontend React.
+- Inicia los servicios.
+
+La primera ejecucion puede tardar varios minutos.
+
+
+7. COMPROBAR LOS CONTENEDORES
+-----------------------------
+
+docker compose ps
+
+El resultado debe mostrar:
+
+- db: Up y healthy.
+- api: Up.
+- web: Up.
+
+Comprobar la API:
+
+Linux:
+
+curl http://localhost:8000/health
+
+Windows PowerShell:
+
+Invoke-RestMethod http://localhost:8000/health
+
+Respuesta esperada:
+
+{"status":"ok"}
+
+
+8. ABRIR LA APLICACION
+----------------------
+
+Panel web:
+
+http://localhost:5173
+
+Documentacion interactiva de FastAPI:
+
+http://localhost:8000/docs
+
+API:
+
+http://localhost:8000
+
+
+9. USUARIOS DE PRUEBA
+---------------------
+
+ADMINISTRADOR:
+
+Correo: admin@fueltrack.local
+Contraseña: Cambiar123!
+Permisos: ve toda la informacion, administra instituciones, estaciones,
+usuarios, auditoria, alertas y reportes disponibles. No registra carguios.
+
+OPERADOR GENERAL:
+
+Correo: operador@fueltrack.local
+Contraseña: Operador123!
+Estacion: E/S Cristo Autogas S.R.L.
+
+OPERADOR CRISTO:
+
+Correo: operador.cristo@fueltrack.local
+Contraseña: Operador123!
+Estacion: E/S Cristo Autogas S.R.L.
+
+OPERADOR GAS-MAY:
+
+Correo: operador.gasmay@fueltrack.local
+Contraseña: Operador123!
+Estacion: E/S Gas-May S.R.L.
+
+OPERADOR VOLCAN:
+
+Correo: operador.volcan@fueltrack.local
+Contraseña: Operador123!
+Estacion: E/S Volcan S.R.L.
+
+SUPERVISOR:
+
+Correo: supervisor@fueltrack.local
+Contraseña: Supervisor123!
+Alcance: estaciones asignadas de su institucion.
+
+Estas credenciales son solamente de demostracion. Cambiarlas antes de
+cualquier uso fuera de un entorno local.
+
+
+10. INSTITUCIONES Y ESTACIONES PRECARGADAS
+------------------------------------------
+
+INST-001:
+Cristo Autogas S.R.L.
+EST-001 - E/S Cristo Autogas S.R.L.
+
+INST-002:
+Comercializadora Gas-May S.R.L.
+EST-002 - E/S Gas-May S.R.L.
+
+INST-003:
+Estacion de Servicio Volcan S.R.L.
+EST-003 - E/S Volcan S.R.L.
+
+Los nombres y codigos se crean o migran de forma idempotente al iniciar
+sesion. Las operaciones existentes no deben eliminarse por este proceso.
+
+
+11. PRUEBA RAPIDA DEL SISTEMA
+-----------------------------
+
+1. Abrir http://localhost:5173.
+2. Iniciar sesion como ADMIN.
+3. Revisar Resumen, Operaciones, Vehiculos, Estaciones, Casos y Alertas.
+4. Cerrar sesion.
+5. Iniciar sesion como OPERATOR.
+6. Entrar a Operaciones.
+7. Comprobar que la estacion aparece asignada automaticamente.
+8. Seleccionar un vehiculo sintetico.
+9. Seleccionar un combustible autorizado.
+10. Registrar litros y guardar la operacion.
+11. Cerrar sesion.
+12. Iniciar sesion como SUPERVISOR.
+13. Revisar el dashboard, alertas y casos de su alcance.
+
+Los operadores no deben poder elegir otra estacion ni crear vehiculos.
+El ADMIN no debe registrar operaciones.
+
+
+12. VERIFICAR LA BASE DE DATOS
+------------------------------
+
+Mostrar tablas:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c "\dt"
+
+Mostrar instituciones y estaciones:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c "SELECT i.code, i.name, s.code, s.name FROM institutions i JOIN stations s ON s.institution_id=i.id ORDER BY i.code;"
+
+Mostrar usuarios:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c "SELECT full_name, email, role, is_active FROM users ORDER BY email;"
+
+Mostrar vehiculos:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c "SELECT plate, vehicle_type, b_sisa_code, is_active FROM vehicles ORDER BY plate;"
+
+Mostrar operaciones:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db -c "SELECT occurred_at, quantity_liters, station_id, vehicle_id FROM fuel_operations ORDER BY occurred_at DESC;"
+
+
+13. DETENER, INICIAR Y ACTUALIZAR
+---------------------------------
+
+Detener sin borrar datos:
+
+docker compose down
+
+Iniciar nuevamente:
+
+docker compose up -d
+
+Actualizar desde GitHub:
+
+git pull
+docker compose up -d --build
+
+Ver logs:
+
+docker compose logs -f api
+docker compose logs -f db
+docker compose logs -f web
+
+Salir de los logs:
+
+Ctrl + C
+
+
+14. PERSISTENCIA DE POSTGRESQL
+--------------------------------
+
+Los datos se guardan en el volumen Docker "postgres_data".
+
+Este comando conserva la base:
+
+docker compose down
+
+Este comando elimina el volumen y borra los datos:
+
+docker compose down -v
+
+No utilizar "down -v" salvo que se quiera comenzar desde cero.
+
+Importante: database/schema.sql se ejecuta automaticamente al crear una
+base nueva. Si ya existe el volumen, sus instrucciones de inicializacion
+no se vuelven a ejecutar. Las migraciones idempotentes de la API se aplican
+al iniciar sesion, pero no se debe borrar el volumen en una instalacion
+con datos importantes sin realizar antes una copia de seguridad.
+
+
+15. COPIA DE SEGURIDAD
+----------------------
+
+Crear un respaldo SQL:
+
+docker compose exec -T db pg_dump -U combustible_user -d combustible_db > fueltrack_backup.sql
+
+Restaurar en una base vacia:
+
+docker compose exec -T db psql -U combustible_user -d combustible_db < fueltrack_backup.sql
+
+Comprobar que el archivo de respaldo no se publique si contiene datos
+que deban permanecer privados.
+
+
+16. SMTP PARA ALERTAS PRIORITARIAS
+----------------------------------
+
+El correo es opcional. Para habilitar notificaciones del tercer carguio,
+configurar en ".env":
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=cuenta@gmail.com
+SMTP_PASSWORD=contrasena-de-aplicacion
+ALERT_RECIPIENT=destinatario@gmail.com
+
+Para Gmail se necesita una contrasena de aplicacion, no la contrasena
+normal de la cuenta. Nunca escribir esta contrasena en el codigo ni
+publicarla en GitHub.
+
+Si SMTP falla, la alerta debe conservarse en la base de datos; revisar los
+logs del API para diagnosticar el envio.
+
+
+17. SOLUCION DE PROBLEMAS
+-------------------------
+
+Si Docker no esta activo en Linux:
+
+sudo systemctl restart docker
+
+Si aparece "permission denied":
+
+sudo usermod -aG docker "$USER"
+
+Cerrar sesion y volver a entrar.
+
+Si la web no muestra cambios:
+
+docker compose up -d --build web
+
+Luego recargar con:
+
+Ctrl + Shift + R
+
+Si la API no inicia:
+
+docker compose logs --tail=100 api
+
+Si PostgreSQL no inicia:
+
+docker compose logs --tail=100 db
+docker compose ps
+
+Si existe otro PostgreSQL local usando el puerto 5432, cambiar en ".env":
+
+POSTGRES_PORT=5433
+
+El puerto interno de Docker continua siendo 5432. Despues ejecutar:
+
+docker compose up -d
+
+Si aparece HTTP 401:
+
+1. Cerrar sesion en el panel.
+2. Recargar con Ctrl + Shift + R.
+3. Iniciar sesion nuevamente.
+4. No copiar manualmente tokens antiguos.
+
+Si aparece HTTP 500:
+
+docker compose logs --tail=100 api
+
+Revisar el primer error Python o SQL que aparezca en el log.
+
+
+18. EJECUCION LOCAL SIN DOCKER (OPCIONAL)
+------------------------------------------
+
+Esta modalidad requiere Python 3.12+, Node.js 20+ y PostgreSQL 16+.
+La modalidad Docker sigue siendo la recomendada.
+
+Crear la base y ejecutar database/schema.sql con PostgreSQL local.
+Configurar DATABASE_URL con el servidor local.
+
+Backend:
+
+cd backend
+python -m venv .venv
+
+Linux:
+source .venv/bin/activate
+
+Windows PowerShell:
+.\.venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+Frontend, en otra terminal:
+
+cd frontend
+npm install
+npm run dev
+
+Abrir:
+
+http://localhost:5173
+
+No es necesario crear ".venv" si se utiliza Docker.
+
+
+19. LIMITES CONOCIDOS DEL AVANCE
+---------------------------------
+
+- El sistema es academico y utiliza datos sinteticos.
+- No existe integracion real con B-SISA, ANH ni hardware RFID.
+- RFID esta preparado como campo y servicio desacoplado para una futura
+  integracion.
+- SMTP es opcional y requiere configuracion externa.
+- Antes de desplegar en produccion se debe configurar HTTPS, secretos
+  propios, copias de seguridad, usuarios de minimo privilegio, firewall,
+  restricciones de red y monitoreo.
+
+
+FIN DEL DOCUMENTO

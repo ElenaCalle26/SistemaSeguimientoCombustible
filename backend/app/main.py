@@ -5,14 +5,20 @@ clients never choose an institution or the station of a fuel operation.
 """
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from io import BytesIO
 import json
 import smtplib
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import mm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .config import get_settings
 from .database import get_db
@@ -541,6 +547,92 @@ def update_case(case_id: UUID, data: CaseUpdate, db: Session = Depends(get_db),
     audit(db, user, "UPDATE", "ReviewCase", entity.id, {"status": data.status})
     db.commit()
     return {"id": entity.id, "status": entity.status}
+
+
+@app.get("/api/cases-report.pdf")
+def cases_report_pdf(db: Session = Depends(get_db),
+                     user: User = Depends(require_roles("ADMIN", "SUPERVISOR"))):
+    """Export the visible case history and audit trail as a permission-scoped PDF."""
+    case_query = scope(select(ReviewCase).order_by(ReviewCase.created_at.desc()), user, ReviewCase,
+                       ReviewCase.station_id)
+    cases = db.scalars(case_query.limit(5000)).all()
+    case_ids = [item.id for item in cases]
+    logs = []
+    if case_ids:
+        logs = db.scalars(select(CaseLog).where(CaseLog.case_id.in_(case_ids))
+                          .order_by(CaseLog.created_at.desc()).limit(10000)).all()
+
+    audit_query = select(AuditLog).order_by(AuditLog.created_at.desc())
+    if user.role != "ADMIN":
+        audit_query = audit_query.where(AuditLog.institution_id == user.institution_id)
+    audit_rows = db.scalars(audit_query.limit(10000)).all()
+
+    buffer = BytesIO()
+    document = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=14 * mm, leftMargin=14 * mm,
+                                 topMargin=14 * mm, bottomMargin=14 * mm)
+    styles = getSampleStyleSheet()
+    body = styles["BodyText"]
+    body.fontSize = 8
+    body.leading = 10
+    title = styles["Title"]
+    story = [
+        Paragraph("FuelTrack - Registro de actividad y bitácora", title),
+        Paragraph(
+            f"Generado: {datetime.now(timezone.utc).astimezone().strftime('%d/%m/%Y %H:%M:%S')} "
+            f"| Alcance: {'global' if user.role == 'ADMIN' else 'institución asignada'}",
+            body,
+        ),
+        Spacer(1, 8),
+        Paragraph("Cambios en casos de revisión", styles["Heading2"]),
+    ]
+    case_data = [["Fecha", "Caso / vehículo", "Quién realizó el cambio", "Acción", "Conclusión / nota"]]
+    for log in logs:
+        case = next((item for item in cases if item.id == log.case_id), None)
+        actor = db.get(User, log.actor_id)
+        case_data.append([
+            log.created_at.astimezone().strftime("%d/%m/%Y %H:%M") if log.created_at else "-",
+            f"{str(log.case_id)[:8]} / {case.vehicle.plate if case else '-'}",
+            f"{actor.email if actor else 'Sistema'} ({actor.role if actor else 'SYSTEM'})",
+            log.action,
+            log.note or "-",
+        ])
+    if len(case_data) == 1:
+        case_data.append(["-", "-", "-", "-", "No hay cambios registrados."])
+    case_table = Table(case_data, colWidths=[25 * mm, 31 * mm, 48 * mm, 22 * mm, 48 * mm], repeatRows=1)
+    case_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#11251e")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d9e0db")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f7f5")]),
+    ]))
+    story.extend([case_table, Spacer(1, 10), Paragraph("Bitácora general del sistema", styles["Heading2"])])
+    audit_data = [["Fecha", "Quién", "Acción", "Entidad", "Detalle"]]
+    for row in audit_rows:
+        actor = db.get(User, row.actor_id) if row.actor_id else None
+        audit_data.append([
+            row.created_at.astimezone().strftime("%d/%m/%Y %H:%M") if row.created_at else "-",
+            f"{actor.email if actor else 'Sistema'} ({actor.role if actor else 'SYSTEM'})",
+            row.action,
+            f"{row.entity_type} {str(row.entity_id or '')[:8]}",
+            row.details or "-",
+        ])
+    if len(audit_data) == 1:
+        audit_data.append(["-", "-", "-", "-", "No hay eventos de auditoría registrados."])
+    audit_table = Table(audit_data, colWidths=[25 * mm, 52 * mm, 25 * mm, 35 * mm, 37 * mm], repeatRows=1)
+    audit_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#11251e")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#d9e0db")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f7f5")]),
+    ]))
+    story.append(audit_table)
+    document.build(story)
+    return Response(content=buffer.getvalue(), media_type="application/pdf",
+                    headers={"Content-Disposition": "inline; filename=fueltrack-actividad.pdf"})
 
 
 @app.get("/api/alerts")

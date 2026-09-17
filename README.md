@@ -59,6 +59,7 @@ Configura `DATABASE_URL` en `backend/.env` con tus credenciales PostgreSQL. No s
 | GET/POST | `/api/stations` | Consulta/crea estaciones | Todos / Admin, Supervisor |
 | GET/POST | `/api/operations` | Consulta/registra operaciones (estación de sesión) | Todos / Operator |
 | GET/PATCH | `/api/cases` | Seguimiento de casos | Admin, Supervisor |
+| GET | `/api/cases-report.pdf` | PDF de cambios de casos y bitácora visible | Admin, Supervisor |
 | GET | `/api/alerts` | Alertas y tercer carguío prioritario | Admin, Supervisor |
 | GET | `/api/audit` | Bitácora inmutable | Admin |
 | GET/POST | `/api/users`, `/api/user-stations` | Usuarios y asignaciones | Admin |
@@ -85,7 +86,9 @@ Los umbrales están inicializados en `tracking_rules`: más de 120 litros en una
 - No ingreses nombres de propietarios, documentos de identidad, fotos o información oficial confidencial.
 - Usa copias de seguridad, usuarios de mínimo privilegio y una red restringida para PostgreSQL.
 - SMTP es opcional: configura `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` y `ALERT_RECIPIENT` para notificar el tercer carguío prioritario. Si no se configura, la alerta permanece disponible en la API.
-La exportación PDF no se incorpora para mantener el contenedor liviano; los endpoints paginados entregan los datos necesarios para reportes.
+Desde **Casos de revisión**, el botón **PDF de actividad** genera un reporte con los cambios de casos
+(quién, rol, acción, fecha y conclusión) y la bitácora general. ADMIN obtiene el alcance global;
+SUPERVISOR solo recibe los eventos de su institución y los casos de sus estaciones asignadas.
 
 ## Licencia
 

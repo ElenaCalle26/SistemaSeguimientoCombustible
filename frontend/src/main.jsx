@@ -6,6 +6,7 @@ import {
   Building2,
   Car,
   CheckCircle2,
+  FileText,
   LogOut,
   Plus,
   ShieldCheck,
@@ -93,7 +94,11 @@ function Login({ onLogin }) {
         <div className="brand">
           <Activity /> FuelTrack
         </div>
-        <h1>Control con criterio.</h1>
+        <h1>
+          <span>SEGUIMIENTO</span>
+          <span>DE CARGUÍOS</span>
+          <span>DE COMBUSTIBLE</span>
+        </h1>
         <p>Seguimiento centralizado de operaciones de carguío con información sintética.</p>
         <div className="demo-list">
           <button type="button" className="demo-chip" onClick={() => { setEmail('admin@fueltrack.local'); setPassword('Cambiar123!'); }}>
@@ -120,7 +125,6 @@ function Login({ onLogin }) {
         </label>
         {error && <small className="error">{error}</small>}
         <button type="submit">Ingresar</button>
-        <small>Demo: admin@fueltrack.local / operador@fueltrack.local / supervisor@fueltrack.local</small>
       </form>
     </main>
   );
@@ -184,7 +188,7 @@ function App() {
       items.push('Vehículos', 'Estaciones');
     }
     if (canReviewCases) {
-      items.push('Casos de revisión', 'Alertas');
+      items.push('Casos de revisión', 'Alertas', 'Analítica');
     }
     return items;
   }, [canManageCatalogs, canReviewCases]);
@@ -196,14 +200,14 @@ function App() {
       const me = await request('/api/auth/me');
       const requests = [
         request('/api/dashboard'),
-        request('/api/operations'),
-        request('/api/vehicles'),
+        request('/api/operations?page_size=100'),
+        request('/api/vehicles?page_size=100'),
         request('/api/stations'),
         request('/api/fuel-types'),
       ];
 
       if (me.role === 'ADMIN' || me.role === 'SUPERVISOR') {
-        requests.push(request('/api/cases'), request('/api/alerts'));
+        requests.push(request('/api/cases?page_size=100'), request('/api/alerts?page_size=100'));
       } else {
         requests.push(Promise.resolve([]), Promise.resolve([]));
       }
@@ -357,6 +361,75 @@ function App() {
       setBusy('');
     }
   };
+
+  const downloadActivityPdf = async () => {
+    setBusy('activity-pdf');
+    setError('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/api/cases-report.pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error('No se pudo generar el reporte PDF');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'fueltrack-actividad.pdf';
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const alertSeverityData = useMemo(() => {
+    const counts = alerts.reduce((result, item) => {
+      result[item.severity] = (result[item.severity] || 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [alerts]);
+
+  const alertCodeData = useMemo(() => {
+    const counts = alerts.reduce((result, item) => {
+      result[item.code] = (result[item.code] || 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [alerts]);
+
+  const caseStatusData = useMemo(() => {
+    const counts = cases.reduce((result, item) => {
+      result[item.status] = (result[item.status] || 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+  }, [cases]);
+
+  const stationOperationsData = useMemo(() => {
+    const counts = ops.reduce((result, item) => {
+      result[item.station] = (result[item.station] || 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [ops]);
+
+  const chartTotal = alertSeverityData.reduce((sum, [, value]) => sum + value, 0);
+  const chartGradient = alertSeverityData.length
+    ? (() => {
+        let start = 0;
+        const colorsBySeverity = { CRITICAL: '#d45d55', WARNING: '#e1a23b', INFO: '#5b8fd1' };
+        return alertSeverityData.map(([label, value]) => {
+          const end = start + (value / chartTotal) * 360;
+          const segment = `${colorsBySeverity[label] || '#729080'} ${start}deg ${end}deg`;
+          start = end;
+          return segment;
+        }).join(', ');
+      })()
+    : '#e6ece8 0deg 360deg';
 
   if (!user) {
     return <Login onLogin={loadApp} />;
@@ -644,7 +717,9 @@ function App() {
                 <h2>Alertas operativas</h2>
                 <p>Señales explicables; el tercer carguío aparece como prioridad crítica.</p>
               </div>
-              <AlertTriangle size={22} />
+              <button className="secondary" type="button" onClick={() => setView('Analítica')}>
+                <Activity size={17} /> Ver dashboard
+              </button>
             </div>
             <table>
               <thead><tr><th>Severidad</th><th>Regla</th><th>Mensaje</th><th>Fecha</th></tr></thead>
@@ -663,6 +738,73 @@ function App() {
           </section>
         )}
 
+        {view === 'Analítica' && canReviewCases && (
+          <section className="analytics">
+            <div className="analytics-intro">
+              <div>
+                <span className="eyebrow">CENTRO DE ALERTAS</span>
+                <h2>Dashboard de alertas</h2>
+                <p className="muted">Lectura rápida de señales, casos y actividad del alcance autorizado.</p>
+              </div>
+              <button className="secondary" type="button" onClick={() => setView('Alertas')}>
+                <AlertTriangle size={17} /> Ver listado
+              </button>
+            </div>
+            <div className="analytics-grid">
+              <article className="chart-panel pie-panel">
+                <div className="chart-title"><h3>Alertas por severidad</h3><span>{alerts.length} total</span></div>
+                <div className="pie-layout">
+                  <div className="pie-chart" style={{ background: `conic-gradient(${chartGradient})` }}>
+                    <div><strong>{alerts.length}</strong><small>alertas</small></div>
+                  </div>
+                  <div className="chart-legend">
+                    {alertSeverityData.map(([label, value]) => (
+                      <div key={label}><span className={`legend-dot ${label.toLowerCase()}`} />{label}<b>{value}</b></div>
+                    ))}
+                    {!alertSeverityData.length && <p className="muted">Sin datos.</p>}
+                  </div>
+                </div>
+              </article>
+              <article className="chart-panel">
+                <div className="chart-title"><h3>Tipos de alerta</h3><span>Señales generadas</span></div>
+                <div className="horizontal-bars">
+                  {alertCodeData.map(([label, value]) => (
+                    <div className="bar-row" key={label}>
+                      <div><span>{label}</span><b>{value}</b></div>
+                      <div className="bar-track"><i style={{ width: `${(value / (alertCodeData[0]?.[1] || 1)) * 100}%` }} /></div>
+                    </div>
+                  ))}
+                  {!alertCodeData.length && <p className="muted">Sin alertas generadas.</p>}
+                </div>
+              </article>
+              <article className="chart-panel">
+                <div className="chart-title"><h3>Casos por estado</h3><span>Seguimiento manual</span></div>
+                <div className="status-bars">
+                  {caseStatusData.map(([label, value]) => (
+                    <div className="status-bar" key={label}>
+                      <div className={`status-fill ${label}`} style={{ height: `${(value / (caseStatusData[0]?.[1] || 1)) * 100}%` }} />
+                      <b>{value}</b><span>{label}</span>
+                    </div>
+                  ))}
+                  {!caseStatusData.length && <p className="muted">Sin casos.</p>}
+                </div>
+              </article>
+              <article className="chart-panel">
+                <div className="chart-title"><h3>Operaciones por estación</h3><span>Registros cargados</span></div>
+                <div className="horizontal-bars">
+                  {stationOperationsData.map(([label, value]) => (
+                    <div className="bar-row" key={label}>
+                      <div><span>{label}</span><b>{value}</b></div>
+                      <div className="bar-track green"><i style={{ width: `${(value / (stationOperationsData[0]?.[1] || 1)) * 100}%` }} /></div>
+                    </div>
+                  ))}
+                  {!stationOperationsData.length && <p className="muted">Sin operaciones.</p>}
+                </div>
+              </article>
+            </div>
+          </section>
+        )}
+
         {view === 'Casos de revisión' && canReviewCases && (
           <section className="panel">
             <div className="panelhead">
@@ -670,6 +812,10 @@ function App() {
                 <h2>Seguimiento manual</h2>
                 <p>Los criterios indican revisión; no determinan irregularidades ni sanciones.</p>
               </div>
+              <button className="secondary" type="button" onClick={downloadActivityPdf} disabled={busy === 'activity-pdf'}>
+                <FileText size={17} />
+                {busy === 'activity-pdf' ? 'Generando...' : 'PDF de actividad'}
+              </button>
             </div>
             <table>
               <thead>
