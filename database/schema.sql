@@ -117,15 +117,15 @@ INSERT INTO institutions(code,name) VALUES
  ('INST-002','Comercializadora Gas-May S.R.L.'),
  ('INST-003','Estación de Servicio Volcán S.R.L.')
 ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name;
-INSERT INTO stations(institution_id,code,name,municipality)
-SELECT id,'EST-001','E/S Cristo Autogas S.R.L.','La Paz' FROM institutions WHERE code='INST-001'
-ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name, institution_id=EXCLUDED.institution_id;
-INSERT INTO stations(institution_id,code,name,municipality)
-SELECT id,'EST-002','E/S Gas-May S.R.L.','La Paz' FROM institutions WHERE code='INST-002'
-ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name, institution_id=EXCLUDED.institution_id;
-INSERT INTO stations(institution_id,code,name,municipality)
-SELECT id,'EST-003','E/S Volcán S.R.L.','La Paz' FROM institutions WHERE code='INST-003'
-ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name, institution_id=EXCLUDED.institution_id;
+INSERT INTO stations(institution_id,code,name,municipality,address)
+SELECT id,'EST-001','E/S Cristo Autogas S.R.L.','La Paz','Av. Chacaltaya N.° 804, zona Achachicala' FROM institutions WHERE code='INST-001'
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name, institution_id=EXCLUDED.institution_id, address=EXCLUDED.address;
+INSERT INTO stations(institution_id,code,name,municipality,address)
+SELECT id,'EST-002','E/S Gas-May S.R.L.','La Paz','Av. General Juan José Torrez, en las inmediaciones del Cementerio La Llamita' FROM institutions WHERE code='INST-002'
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name, institution_id=EXCLUDED.institution_id, address=EXCLUDED.address;
+INSERT INTO stations(institution_id,code,name,municipality,address)
+SELECT id,'EST-003','E/S Volcán S.R.L.','La Paz','Av. Montes esq. Pando N.° 101, Zona San Sebastián' FROM institutions WHERE code='INST-003'
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name, institution_id=EXCLUDED.institution_id, address=EXCLUDED.address;
 INSERT INTO station_fuel_authorizations(station_id,fuel_type_id)
 SELECT s.id,f.id FROM stations s CROSS JOIN fuel_types f
 WHERE s.code IN ('EST-001','EST-002','EST-003')

@@ -21,6 +21,8 @@ class UserOut(BaseModel):
     role: str
     institution_id: UUID | None = None
     fixed_station_id: UUID | None = None
+    institution_code: str | None = None
+    institution_name: str | None = None
 
 
 class UserCreate(BaseModel):

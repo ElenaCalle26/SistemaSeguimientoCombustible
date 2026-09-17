@@ -175,7 +175,7 @@ function App() {
 
   const canManageCatalogs = user?.role === 'ADMIN' || user?.role === 'SUPERVISOR';
   const canManageStations = user?.role === 'ADMIN' || user?.role === 'SUPERVISOR';
-  const canCreateOperations = user?.role === 'OPERATOR' || user?.role === 'SUPERVISOR';
+  const canCreateOperations = user?.role === 'OPERATOR';
   const canReviewCases = user?.role === 'ADMIN' || user?.role === 'SUPERVISOR';
 
   const navItems = useMemo(() => {
@@ -329,7 +329,7 @@ function App() {
         method: 'POST',
         body: JSON.stringify(stationForm),
       });
-      setStationForm({ code: '', name: '', municipality: 'La Paz', address: '' });
+      setStationForm({ institution_id: user.institution_id || '', code: '', name: '', municipality: 'La Paz', address: '' });
       await refresh();
     } catch (err) {
       setError(err.message);
@@ -608,7 +608,7 @@ function App() {
                 ) : (
                   <label>
                     Institución asignada
-                    <input value={user.institution_id || ''} readOnly />
+                    <input value={`${user.institution_code || ''} - ${user.institution_name || ''}`} readOnly />
                   </label>
                 )}
                 <label>

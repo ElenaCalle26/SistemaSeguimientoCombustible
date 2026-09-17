@@ -56,13 +56,13 @@ def audit(db: Session, actor: User | None, action: str, entity_type: str, entity
 def ensure_seed(db: Session):
     """Create a safe, repeatable synthetic dataset for local/demo installations."""
     institution_specs = [
-        ("INST-001", "Cristo Autogas S.R.L.", "EST-001", "E/S Cristo Autogas S.R.L."),
-        ("INST-002", "Comercializadora Gas-May S.R.L.", "EST-002", "E/S Gas-May S.R.L."),
-        ("INST-003", "Estación de Servicio Volcán S.R.L.", "EST-003", "E/S Volcán S.R.L."),
+        ("INST-001", "Cristo Autogas S.R.L.", "EST-001", "E/S Cristo Autogas S.R.L.", "Av. Chacaltaya N.° 804, zona Achachicala"),
+        ("INST-002", "Comercializadora Gas-May S.R.L.", "EST-002", "E/S Gas-May S.R.L.", "Av. General Juan José Torrez, en las inmediaciones del Cementerio La Llamita"),
+        ("INST-003", "Estación de Servicio Volcán S.R.L.", "EST-003", "E/S Volcán S.R.L.", "Av. Montes esq. Pando N.° 101, Zona San Sebastián"),
     ]
     institutions = []
     stations = []
-    for institution_code, institution_name, station_code, station_name in institution_specs:
+    for institution_code, institution_name, station_code, station_name, station_address in institution_specs:
         institution = db.scalar(select(Institution).where(Institution.code == institution_code))
         if not institution:
             institution = db.scalar(select(Institution).where(Institution.name == institution_name))
@@ -89,6 +89,7 @@ def ensure_seed(db: Session):
             station.code = station_code
             station.name = station_name
             station.institution_id = institution.id
+        station.address = station_address
         institutions.append(institution)
         stations.append(station)
     for code, name in (("GAS_ESP", "Gasolina Especial"), ("DIESEL", "Diesel Oil"), ("GNV", "Gas Natural Vehicular")):
@@ -191,7 +192,16 @@ def login(data: Login, db: Session = Depends(get_db)):
 
 @app.get("/api/auth/me", response_model=UserOut)
 def me(user: User = Depends(current_user)):
-    return user
+    return {
+        "id": user.id,
+        "full_name": user.full_name,
+        "email": user.email,
+        "role": user.role,
+        "institution_id": user.institution_id,
+        "fixed_station_id": user.fixed_station_id,
+        "institution_code": user.institution.code if user.institution else None,
+        "institution_name": user.institution.name if user.institution else None,
+    }
 
 
 @app.get("/api/dashboard")
@@ -279,9 +289,9 @@ def assign_station(data: AssignmentIn, db: Session = Depends(get_db), user: User
 @app.get("/api/vehicles")
 def list_vehicles(q: str | None = None, page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100),
                   db: Session = Depends(get_db), user: User = Depends(current_user)):
+    # Vehicles are a national synthetic registry. Operational access is still
+    # restricted by the authenticated station and fuel authorization.
     query = select(Vehicle).order_by(Vehicle.plate)
-    if user.role != "ADMIN":
-        query = query.where(Vehicle.institution_id == user.institution_id)
     if q:
         query = query.where(Vehicle.plate.ilike(f"%{q.upper()}%"))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
@@ -428,12 +438,12 @@ def notify_priority_alert(vehicle: Vehicle, reasons: list[str]):
 
 
 @app.post("/api/operations", status_code=201)
-def create_operation(data: OperationIn, db: Session = Depends(get_db), user: User = Depends(require_roles("OPERATOR", "SUPERVISOR"))):
+def create_operation(data: OperationIn, db: Session = Depends(get_db), user: User = Depends(require_roles("OPERATOR"))):
     station = resolve_session_station(user, db)
     vehicle = db.get(Vehicle, data.vehicle_id)
     fuel = db.get(FuelType, data.fuel_type_id)
-    if not vehicle or vehicle.institution_id != user.institution_id or not vehicle.is_active or not fuel or not fuel.is_active:
-        raise HTTPException(422, "Vehículo o combustible inválido para la institución")
+    if not vehicle or not vehicle.is_active or not fuel or not fuel.is_active:
+        raise HTTPException(422, "Vehículo o combustible inválido")
     authorization = db.scalar(select(StationFuelAuthorization).where(
         StationFuelAuthorization.station_id == station.id,
         StationFuelAuthorization.fuel_type_id == fuel.id,

@@ -55,9 +55,9 @@ Configura `DATABASE_URL` en `backend/.env` con tus credenciales PostgreSQL. No s
 |---|---|---|---|
 | POST | `/api/auth/login` | Inicia sesión | Público |
 | GET | `/api/dashboard` | Indicadores y actividad | Todos |
-| GET/POST | `/api/vehicles` | Consulta/crea vehículos | Todos / Admin, Supervisor |
+| GET | `/api/vehicles` | Consulta el padrón nacional sintético | Todos |
 | GET/POST | `/api/stations` | Consulta/crea estaciones | Todos / Admin, Supervisor |
-| GET/POST | `/api/operations` | Consulta/registra operaciones (estación de sesión) | Todos / Supervisor, Operator |
+| GET/POST | `/api/operations` | Consulta/registra operaciones (estación de sesión) | Todos / Operator |
 | GET/PATCH | `/api/cases` | Seguimiento de casos | Admin, Supervisor |
 | GET | `/api/alerts` | Alertas y tercer carguío prioritario | Admin, Supervisor |
 | GET | `/api/audit` | Bitácora inmutable | Admin |
