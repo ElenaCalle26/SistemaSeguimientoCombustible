@@ -181,10 +181,10 @@ function App() {
   const navItems = useMemo(() => {
     const items = ['Resumen', 'Operaciones'];
     if (canManageCatalogs) {
-      items.push('VehÃ­culos', 'Estaciones');
+      items.push('Vehículos', 'Estaciones');
     }
     if (canReviewCases) {
-      items.push('Casos de revisiÃ³n', 'Alertas');
+      items.push('Casos de revisión', 'Alertas');
     }
     return items;
   }, [canManageCatalogs, canReviewCases]);
@@ -371,7 +371,7 @@ function App() {
         <nav>
           {navItems.map(item => (
             <button className={view === item ? 'active' : ''} onClick={() => setView(item)} key={item}>
-              {item === 'Resumen' ? <Activity /> : item === 'Operaciones' ? <Car /> : item === 'VehÃ­culos' ? <Car /> : item === 'Estaciones' ? <Building2 /> : <AlertTriangle />}
+              {item === 'Resumen' ? <Activity /> : item === 'Operaciones' ? <Car /> : item === 'Vehículos' ? <Car /> : item === 'Estaciones' ? <Building2 /> : <AlertTriangle />}
               {item}
             </button>
           ))}
@@ -396,12 +396,12 @@ function App() {
             <p className="muted">
               {user.role === 'OPERATOR'
                 ? 'Vista operativa para registrar y consultar movimientos.'
-                : 'Vista de administraciÃ³n y revisiÃ³n con datos de prueba.'}
+                : 'Vista de administración y revisión con datos de prueba.'}
             </p>
           </div>
           {view === 'Operaciones' && canCreateOperations && (
             <button className="primary" onClick={() => document.getElementById('operation-form')?.scrollIntoView({ behavior: 'smooth' })}>
-              <Plus size={18} /> Registrar operaciÃ³n
+              <Plus size={18} /> Registrar operación
             </button>
           )}
         </header>
@@ -412,16 +412,16 @@ function App() {
         {view === 'Resumen' && data && (
           <>
             <section className="cards">
-              <Card icon={Activity} label="Operaciones Ãºltimas 24h" value={data.operations_today} />
+              <Card icon={Activity} label="Operaciones últimas 24h" value={data.operations_today} />
               <Card icon={AlertTriangle} label="Casos por revisar" value={data.pending_cases} accent="warning" />
-              <Card icon={Car} label="VehÃ­culos activos" value={data.active_vehicles} />
+              <Card icon={Car} label="Vehículos activos" value={data.active_vehicles} />
               <Card icon={Building2} label="Estaciones activas" value={data.active_stations} />
             </section>
             <section className="panel">
               <div className="panelhead">
                 <div>
                   <h2>Actividad reciente</h2>
-                  <p>Ãšltimas operaciones de carguÃ­o registradas.</p>
+                  <p>Últimas operaciones de carguío registradas.</p>
                 </div>
                 <ShieldCheck size={22} />
               </div>
@@ -436,7 +436,7 @@ function App() {
               <div className="panelhead">
                 <div>
                   <h2>Registro de operaciones</h2>
-                  <p>Consulta y creaciÃ³n segÃºn el rol asignado.</p>
+                  <p>Consulta y creación según el rol asignado.</p>
                 </div>
               </div>
               <Operations rows={ops} />
@@ -513,7 +513,7 @@ function App() {
           </>
         )}
 
-        {view === 'VehÃ­culos' && canManageCatalogs && (
+        {view === 'Vehículos' && canManageCatalogs && (
           <>
             <section className="panel">
               <div className="panelhead">
@@ -663,7 +663,7 @@ function App() {
           </section>
         )}
 
-        {view === 'Casos de revisiÃ³n' && canReviewCases && (
+        {view === 'Casos de revisión' && canReviewCases && (
           <section className="panel">
             <div className="panelhead">
               <div>
