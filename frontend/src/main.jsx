@@ -446,7 +446,7 @@ function App() {
                 <div className="panelhead">
                   <div>
                     <h2>Registrar operación</h2>
-                    <p>Solo operadores y administradores pueden crear movimientos.</p>
+                    <p>Solo los operadores pueden registrar carguíos.</p>
                   </div>
                   <Plus size={20} />
                 </div>
