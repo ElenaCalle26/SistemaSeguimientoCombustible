@@ -164,7 +164,6 @@ def scope(query, user: User, model, station_field=None):
     if station_field is not None:
         assigned_stations = select(UserStationAssignment.station_id).where(
             UserStationAssignment.user_id == user.id,
-            UserStationAssignment.is_active.is_(True),
         )
         query = query.where(station_field.in_(assigned_stations))
     return query
@@ -206,7 +205,6 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(current_user))
         vehicle_query = vehicle_query.where(Vehicle.institution_id == user.institution_id)
         assigned_stations = select(UserStationAssignment.station_id).where(
             UserStationAssignment.user_id == user.id,
-            UserStationAssignment.is_active.is_(True),
         )
         station_query = station_query.where(Station.id.in_(assigned_stations))
     recent = db.scalars(operation_query.order_by(Operation.occurred_at.desc()).limit(8)).all()
@@ -306,7 +304,6 @@ def list_stations(db: Session = Depends(get_db), user: User = Depends(current_us
     if user.role != "ADMIN":
         assigned_stations = select(UserStationAssignment.station_id).where(
             UserStationAssignment.user_id == user.id,
-            UserStationAssignment.is_active.is_(True),
         )
         query = query.where(Station.id.in_(assigned_stations), Station.institution_id == user.institution_id)
     return [{"id": x.id, "code": x.code, "name": x.name, "municipality": x.municipality,

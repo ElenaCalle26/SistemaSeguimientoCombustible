@@ -445,14 +445,14 @@ function App() {
               <section className="panel form-card" id="operation-form">
                 <div className="panelhead">
                   <div>
-                    <h2>Registrar operaciÃ³n</h2>
+                    <h2>Registrar operación</h2>
                     <p>Solo operadores y administradores pueden crear movimientos.</p>
                   </div>
                   <Plus size={20} />
                 </div>
                 <form className="form-grid" onSubmit={createOperation}>
                   <label>
-                    VehÃ­culo
+                    Vehículo
                     <select value={operationForm.vehicle_id} onChange={event => setOperationForm(prev => ({ ...prev, vehicle_id: event.target.value }))}>
                       {vehicles.map(vehicle => (
                         <option key={vehicle.id} value={vehicle.id}>
@@ -462,7 +462,7 @@ function App() {
                     </select>
                   </label>
                   <label>
-                    EstaciÃ³n
+                    Estación
                     <input value={stations.find(station => station.id === user.fixed_station_id)?.name || 'Estación fijada en la sesión'} disabled />
                   </label>
                   <label>
@@ -503,7 +503,7 @@ function App() {
                   </label>
                   <div className="section-actions full-width">
                     <button className="primary" type="submit" disabled={busy === 'operation'}>
-                      <Save size={16} /> {busy === 'operation' ? 'Guardando...' : 'Guardar operaciÃ³n'}
+                      <Save size={16} /> {busy === 'operation' ? 'Guardando...' : 'Guardar operación'}
                     </button>
                   </div>
                 </form>
@@ -518,8 +518,8 @@ function App() {
             <section className="panel">
               <div className="panelhead">
                 <div>
-                  <h2>VehÃ­culos</h2>
-                  <p>AdministraciÃ³n de unidades habilitadas.</p>
+                  <h2>Vehículos</h2>
+                  <p>Administración de unidades habilitadas.</p>
                 </div>
               </div>
               <table>
@@ -527,7 +527,7 @@ function App() {
                   <tr>
                     <th>Placa</th>
                     <th>Tipo</th>
-                    <th>CÃ³digo interno</th>
+                    <th>Código interno</th>
                     <th>Activo</th>
                   </tr>
                 </thead>
@@ -535,14 +535,14 @@ function App() {
                   {vehicles.map(vehicle => (
                     <tr key={vehicle.id}>
                       <td><b>{vehicle.plate}</b></td>
-                      <td>{vehicle.vehicle_type || 'â€”'}</td>
-                      <td>{vehicle.internal_code || 'â€”'}</td>
-                      <td>{vehicle.is_active ? 'SÃ­' : 'No'}</td>
+                      <td>{vehicle.vehicle_type || '—'}</td>
+                      <td>{vehicle.internal_code || '—'}</td>
+                      <td>{vehicle.is_active ? 'Sí' : 'No'}</td>
                     </tr>
                   ))}
                   {!vehicles.length && (
                     <tr>
-                      <td colSpan="4" className="empty">No existen vehÃ­culos.</td>
+                      <td colSpan="4" className="empty">No existen vehículos.</td>
                     </tr>
                   )}
                 </tbody>
@@ -558,16 +558,16 @@ function App() {
               <div className="panelhead">
                 <div>
                   <h2>Estaciones</h2>
-                  <p>AdministraciÃ³n de estaciones habilitadas.</p>
+                  <p>Administración de estaciones habilitadas.</p>
                 </div>
               </div>
               <table>
                 <thead>
                   <tr>
-                    <th>CÃ³digo</th>
+                    <th>Código</th>
                     <th>Nombre</th>
                     <th>Municipio</th>
-                    <th>DirecciÃ³n</th>
+                    <th>Dirección</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -576,7 +576,7 @@ function App() {
                       <td><b>{station.code}</b></td>
                       <td>{station.name}</td>
                       <td>{station.municipality}</td>
-                      <td>{station.address || 'â€”'}</td>
+                      <td>{station.address || '—'}</td>
                     </tr>
                   ))}
                   {!stations.length && (
@@ -591,7 +591,7 @@ function App() {
             {canManageStations && <section className="panel form-card">
               <div className="panelhead">
                 <div>
-                  <h2>Crear estaciÃ³n</h2>
+                  <h2>Crear estación</h2>
                   <p>Disponible para administradores y supervisores.</p>
                 </div>
                 <Building2 size={20} />
@@ -599,20 +599,20 @@ function App() {
               <form className="form-grid" onSubmit={createStation}>
                 {user.role === 'ADMIN' ? (
                   <label>
-                    InstituciÃ³n
+                    Institución
                     <select value={stationForm.institution_id} onChange={event => setStationForm(prev => ({ ...prev, institution_id: event.target.value }))} required>
-                      <option value="">Selecciona una instituciÃ³n</option>
+                      <option value="">Selecciona una institución</option>
                       {institutions.map(item => <option key={item.id} value={item.id}>{item.code} - {item.name}</option>)}
                     </select>
                   </label>
                 ) : (
                   <label>
-                    InstituciÃ³n asignada
+                    Institución asignada
                     <input value={user.institution_id || ''} readOnly />
                   </label>
                 )}
                 <label>
-                  CÃ³digo
+                  Código
                   <input value={stationForm.code} onChange={event => setStationForm(prev => ({ ...prev, code: event.target.value }))} />
                 </label>
                 <label>
@@ -624,12 +624,12 @@ function App() {
                   <input value={stationForm.municipality} onChange={event => setStationForm(prev => ({ ...prev, municipality: event.target.value }))} />
                 </label>
                 <label className="full-width">
-                  DirecciÃ³n
+                  Dirección
                   <input value={stationForm.address} onChange={event => setStationForm(prev => ({ ...prev, address: event.target.value }))} />
                 </label>
                 <div className="section-actions full-width">
                   <button className="primary" type="submit" disabled={busy === 'station'}>
-                    <Save size={16} /> {busy === 'station' ? 'Guardando...' : 'Guardar estaciÃ³n'}
+                    <Save size={16} /> {busy === 'station' ? 'Guardando...' : 'Guardar estación'}
                   </button>
                 </div>
               </form>
@@ -668,17 +668,17 @@ function App() {
             <div className="panelhead">
               <div>
                 <h2>Seguimiento manual</h2>
-                <p>Los criterios indican revisiÃ³n; no determinan irregularidades ni sanciones.</p>
+                <p>Los criterios indican revisión; no determinan irregularidades ni sanciones.</p>
               </div>
             </div>
             <table>
               <thead>
                 <tr>
-                  <th>VehÃ­culo</th>
+                  <th>Vehículo</th>
                   <th>Estado</th>
                   <th>Fecha</th>
-                  <th>ConclusiÃ³n</th>
-                  <th>AcciÃ³n</th>
+                  <th>Conclusión</th>
+                  <th>Acción</th>
                 </tr>
               </thead>
               <tbody>
@@ -703,7 +703,7 @@ function App() {
                         <input
                           value={draft.conclusion}
                           onChange={event => setCaseDrafts(prev => ({ ...prev, [item.id]: { ...draft, conclusion: event.target.value } }))}
-                          placeholder="ConclusiÃ³n"
+                          placeholder="Conclusión"
                         />
                       </td>
                       <td>
@@ -733,8 +733,8 @@ function Operations({ rows }) {
     <table>
       <thead>
         <tr>
-          <th>VehÃ­culo</th>
-          <th>EstaciÃ³n</th>
+          <th>Vehículo</th>
+          <th>Estación</th>
           <th>Combustible</th>
           <th>Volumen</th>
           <th>Fecha y hora</th>
@@ -752,7 +752,7 @@ function Operations({ rows }) {
         ))}
         {!rows.length && (
           <tr>
-            <td colSpan="5" className="empty">AÃºn no hay operaciones registradas.</td>
+            <td colSpan="5" className="empty">Aún no hay operaciones registradas.</td>
           </tr>
         )}
       </tbody>
