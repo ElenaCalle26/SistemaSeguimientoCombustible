@@ -15,6 +15,12 @@ import './styles.css';
 
 const API = import.meta.env.VITE_API_URL || '';
 
+const asArray = value => {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.items)) return value.items;
+  return [];
+};
+
 async function request(path, options = {}) {
   const token = localStorage.getItem('token');
   const headers = {
@@ -22,8 +28,18 @@ async function request(path, options = {}) {
     ...(options.headers || {}),
   };
 
+  /*
   if (token) {
     headers.Authorization = "Bearer $token";
+  }
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  */
+  if (token) {
+    headers.Authorization = 'Bearer ' + token;
   }
 
   const response = await fetch(`${API}${path}`, {
@@ -78,7 +94,7 @@ function Login({ onLogin }) {
           <Activity /> FuelTrack
         </div>
         <h1>Control con criterio.</h1>
-        <p>Seguimiento centralizado de operaciones de carguÃ­o con informaciÃ³n sintÃ©tica.</p>
+        <p>Seguimiento centralizado de operaciones de carguío con información sintética.</p>
         <div className="demo-list">
           <button type="button" className="demo-chip" onClick={() => { setEmail('admin@fueltrack.local'); setPassword('Cambiar123!'); }}>
             Admin
@@ -99,7 +115,7 @@ function Login({ onLogin }) {
           <input value={email} onChange={event => setEmail(event.target.value)} type="email" />
         </label>
         <label>
-          ContraseÃ±a
+          Contraseña
           <input value={password} onChange={event => setPassword(event.target.value)} type="password" />
         </label>
         {error && <small className="error">{error}</small>}
@@ -194,17 +210,20 @@ function App() {
       if (me.role === 'ADMIN') requests.push(request('/api/institutions'));
 
       const [dashboard, operationsPage, vehiclesPage, stationsData, fuelTypesData, casesPage, alertsPage, institutionsData] = await Promise.all(requests);
-      const operations = operationsPage.items || operationsPage;
-      const vehiclesData = vehiclesPage.items || vehiclesPage;
-      const casesData = casesPage?.items || casesPage || [];
-      const alertsData = alertsPage?.items || alertsPage || [];
+      const operations = asArray(operationsPage);
+      const vehiclesData = asArray(vehiclesPage);
+      const stationsList = asArray(stationsData);
+      const fuelList = asArray(fuelTypesData);
+      const casesData = asArray(casesPage);
+      const alertsData = asArray(alertsPage);
+      const institutionsList = asArray(institutionsData);
       setUser(me);
-      setData(dashboard);
+      setData({ ...dashboard, recent_operations: asArray(dashboard?.recent_operations) });
       setOps(operations);
       setVehicles(vehiclesData);
-      setStations(stationsData);
-      setFuelTypes(fuelTypesData);
-      setInstitutions(institutionsData || []);
+      setStations(stationsList);
+      setFuelTypes(fuelList);
+      setInstitutions(institutionsList);
       setStationForm(prev => ({ ...prev, institution_id: me.institution_id || prev.institution_id }));
       setCases(casesData);
       setAlerts(alertsData);
@@ -212,8 +231,8 @@ function App() {
       setOperationForm(prev => ({
         ...prev,
         vehicle_id: vehiclesData[0]?.id || '',
-        station_id: stationsData[0]?.id || '',
-        fuel_type_id: fuelTypesData[0]?.id || '',
+        station_id: stationsList[0]?.id || '',
+        fuel_type_id: fuelList[0]?.id || '',
       }));
       setCaseDrafts(
         Object.fromEntries(
