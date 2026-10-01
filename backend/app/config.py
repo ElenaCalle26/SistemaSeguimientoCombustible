@@ -10,7 +10,11 @@ class Settings(BaseSettings):
     smtp_port: int = 587
     smtp_user: str | None = None
     smtp_password: str | None = None
+    smtp_use_starttls: bool = True
+    smtp_use_ssl: bool = False
     alert_recipient: str | None = None
+    alert_admin_email: str | None = None
+    alert_supervisor_email: str | None = None
     model_config = SettingsConfigDict(env_file='.env', extra='ignore')
 
 @lru_cache

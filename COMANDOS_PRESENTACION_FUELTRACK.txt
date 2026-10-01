@@ -1,0 +1,236 @@
+COMANDOS PARA PRESENTAR FUELTRACK
+=================================
+
+Usar estos pasos en la laptop Linux desde una terminal.
+
+
+1. ABRIR LA CARPETA DEL PROYECTO
+---------------------------------
+
+cd ~/SistemaSeguimientoCombustible
+
+
+2. VERIFICAR QUE DOCKER ESTE DISPONIBLE
+---------------------------------------
+
+docker --version
+docker compose version
+
+
+3. INICIAR EL SISTEMA
+---------------------
+
+docker compose up -d
+
+Si se cambiaron archivos o se actualizo el repositorio, usar:
+
+docker compose up -d --build
+
+
+4. VERIFICAR LOS CONTENEDORES
+-----------------------------
+
+docker compose ps
+
+Deben aparecer los servicios:
+
+- db
+- api
+- web
+
+El servicio db debe aparecer como healthy.
+
+
+5. COMPROBAR LA API
+-------------------
+
+curl http://localhost:8000/health
+
+Respuesta esperada:
+
+{"status":"ok"}
+
+
+6. ABRIR EL SISTEMA
+-------------------
+
+Abrir en el navegador:
+
+http://localhost:5173
+
+
+7. USUARIOS DEMO
+----------------
+
+ADMINISTRADOR
+Correo: admin@fueltrack.local
+Contraseña: Cambiar123!
+Permisos: consulta global, instituciones, estaciones, usuarios, casos,
+alertas, auditoría, dashboard y reportes PDF.
+
+SUPERVISOR
+Correo: supervisor@fueltrack.local
+Contraseña: Supervisor123!
+Permisos: consulta de sus estaciones, casos, alertas, dashboard,
+creación de estaciones para su institución y actualización de casos.
+
+OPERADOR CRISTO AUTOGAS
+Correo: operador.cristo@fueltrack.local
+Contraseña: Operador123!
+Estación: E/S Cristo Autogas S.R.L.
+Permisos: registro y consulta de operaciones de su estación.
+
+OPERADOR GAS-MAY
+Correo: operador.gasmay@fueltrack.local
+Contraseña: Operador123!
+Estación: E/S Gas-May S.R.L.
+Permisos: registro y consulta de operaciones de su estación.
+
+OPERADOR VOLCAN
+Correo: operador.volcan@fueltrack.local
+Contraseña: Operador123!
+Estación: E/S Volcán S.R.L.
+Permisos: registro y consulta de operaciones de su estación.
+
+USUARIO ANTIGUO OPCIONAL
+Correo: operador@fueltrack.local
+Contraseña: Operador123!
+
+
+8. MOSTRAR TODAS LAS TABLAS
+---------------------------
+
+Ejecutar:
+
+docker compose exec db psql -U postgres -d combustible_db -c "\dt"
+
+
+9. MOSTRAR TABLAS Y CANTIDAD DE REGISTROS
+-----------------------------------------
+
+docker compose exec db psql -U postgres -d combustible_db -c "\
+SELECT 'institutions' AS tabla, COUNT(*) AS registros FROM institutions
+UNION ALL SELECT 'stations', COUNT(*) FROM stations
+UNION ALL SELECT 'users', COUNT(*) FROM users
+UNION ALL SELECT 'vehicles', COUNT(*) FROM vehicles
+UNION ALL SELECT 'fuel_operations', COUNT(*) FROM fuel_operations
+UNION ALL SELECT 'alerts', COUNT(*) FROM alerts
+UNION ALL SELECT 'review_cases', COUNT(*) FROM review_cases
+UNION ALL SELECT 'case_logs', COUNT(*) FROM case_logs
+UNION ALL SELECT 'audit_logs', COUNT(*) FROM audit_logs
+ORDER BY tabla;"
+
+
+10. CONSULTAS UTILES PARA LA PRESENTACION
+------------------------------------------
+
+Instituciones:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT code, name FROM institutions ORDER BY code;"
+
+Estaciones:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT code, name, address FROM stations ORDER BY code;"
+
+Usuarios sin mostrar contraseñas:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT email, role, is_active FROM users ORDER BY email;"
+
+Vehículos sintéticos:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT plate, vehicle_type, b_sisa_code, is_active FROM vehicles ORDER BY plate;"
+
+Operaciones:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT occurred_at, plate, station, fuel_type, quantity_liters
+FROM fuel_operations
+JOIN vehicles ON vehicles.id = fuel_operations.vehicle_id
+JOIN stations ON stations.id = fuel_operations.station_id
+JOIN fuel_types ON fuel_types.id = fuel_operations.fuel_type_id
+ORDER BY occurred_at DESC;"
+
+Casos y conclusiones:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT id, status, conclusion, created_at, updated_at
+FROM review_cases ORDER BY updated_at DESC;"
+
+Bitácora de cambios de casos:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT case_id, actor_id, action, note, created_at
+FROM case_logs ORDER BY created_at DESC;"
+
+Auditoría general:
+
+docker compose exec db psql -U postgres -d combustible_db -c \
+"SELECT actor_id, action, entity_type, entity_id, created_at
+FROM audit_logs ORDER BY created_at DESC LIMIT 30;"
+
+
+11. FLUJO RECOMENDADO PARA LA DEMOSTRACION
+--------------------------------------------
+
+1. Iniciar sesión como ADMIN.
+2. Mostrar Resumen.
+3. Mostrar Estaciones y sus direcciones.
+4. Mostrar Vehículos sintéticos.
+5. Mostrar Casos de revisión.
+6. Abrir Analítica desde Alertas.
+7. Generar el PDF de actividad.
+8. Cerrar sesión.
+9. Iniciar sesión como OPERATOR.
+10. Mostrar que la estación queda asignada automáticamente.
+11. Registrar una operación usando un vehículo del padrón nacional.
+12. Volver a ADMIN o SUPERVISOR para mostrar el caso generado.
+13. Usar el botón Guardar y mostrar la conclusión actualizada.
+
+
+12. DETENER EL SISTEMA AL FINAL
+--------------------------------
+
+Detener servicios sin borrar los datos:
+
+docker compose down
+
+NO usar:
+
+docker compose down -v
+
+La opción -v elimina el volumen de PostgreSQL y sus datos.
+
+
+13. SI HAY UN PROBLEMA
+----------------------
+
+Ver logs de la API:
+
+docker compose logs --tail=100 api
+
+Ver logs de PostgreSQL:
+
+docker compose logs --tail=100 db
+
+Ver estado de todos los servicios:
+
+docker compose ps
+
+Reiniciar la API:
+
+docker compose restart api
+
+Recrear todo después de actualizar código:
+
+docker compose up -d --build --force-recreate
+
+
+NOTA DE SEGURIDAD
+=================
+
+Estas son credenciales sintéticas de demostración. No uses estas contraseñas
+en producción. No compartas el archivo .env ni fueltrack_backup.sql.

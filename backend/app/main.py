@@ -4,10 +4,8 @@ The API is intentionally the source of truth for tenancy and station context:
 clients never choose an institution or the station of a fuel operation.
 """
 from datetime import datetime, timedelta, timezone
-from email.message import EmailMessage
 from io import BytesIO
 import json
-import smtplib
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
@@ -22,14 +20,16 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from .config import get_settings
 from .database import get_db
+from .notifications import collect_alert_recipients, send_priority_alert
+from .query_safety import contains_pattern
 from .models import (
     Alert, AuditLog, CaseLog, CaseReason, FuelType, Institution, Operation,
     ReviewCase, Station, StationFuelAuthorization, TrackingRule, User,
     UserStationAssignment, Vehicle,
 )
 from .schemas import (
-    AssignmentIn, CaseUpdate,     FuelAuthorizationIn, InstitutionIn, Login, OperationIn, StationIn,
-    Token, UserCreate, UserOut, VehicleIn,
+    AssignmentIn, CaseUpdate, FuelAuthorizationIn, InstitutionIn, Login, OperationIn,
+    RfidReadIn, StationIn, Token, UserCreate, UserOut, VehicleIn,
 )
 from .security import create_token, current_user, hash_password, require_roles, verify_password
 
@@ -60,7 +60,11 @@ def audit(db: Session, actor: User | None, action: str, entity_type: str, entity
 
 
 def ensure_seed(db: Session):
-    """Create a safe, repeatable synthetic dataset for local/demo installations."""
+    """Create a safe, repeatable synthetic dataset for local/demo installations.
+    After the first successful seed, subsequent calls are no-ops."""
+    # Guard: si el admin ya existe, el seed ya corrió correctamente — salir inmediatamente
+    if db.scalar(select(User).where(User.email == "josephlfamx@gmail.com")):
+        return
     institution_specs = [
         ("INST-001", "Cristo Autogas S.R.L.", "EST-001", "E/S Cristo Autogas S.R.L.", "Av. Chacaltaya N.° 804, zona Achachicala"),
         ("INST-002", "Comercializadora Gas-May S.R.L.", "EST-002", "E/S Gas-May S.R.L.", "Av. General Juan José Torrez, en las inmediaciones del Cementerio La Llamita"),
@@ -120,11 +124,11 @@ def ensure_seed(db: Session):
         if not db.scalar(select(TrackingRule).where(TrackingRule.code == code)):
             db.add(TrackingRule(code=code, name=name, description=description, threshold=threshold, window_hours=hours))
     demos = [
-        ("Administrador Demo", "admin@fueltrack.local", "Cambiar123!", "ADMIN", None, None),
+        ("Administrador", "josephlfamx@gmail.com", "Cambiar123!", "ADMIN", None, None),
         ("Operador Cristo", "operador.cristo@fueltrack.local", "Operador123!", "OPERATOR", institutions[0], stations[0]),
         ("Operador Gas-May", "operador.gasmay@fueltrack.local", "Operador123!", "OPERATOR", institutions[1], stations[1]),
         ("Operador Volcán", "operador.volcan@fueltrack.local", "Operador123!", "OPERATOR", institutions[2], stations[2]),
-        ("Supervisor Multiestación", "supervisor@fueltrack.local", "Supervisor123!", "SUPERVISOR", institutions[0], stations[0]),
+        ("Supervisor Cristo", "fernandomolloa@gmail.com", "Supervisor123!", "SUPERVISOR", institutions[0], stations[0]),
     ]
     for full_name, email, password, role, institution, station in demos:
         user = db.scalar(select(User).where(User.email == email))
@@ -136,31 +140,46 @@ def ensure_seed(db: Session):
             )
             db.add(user)
             db.flush()
-        if station and not db.scalar(select(UserStationAssignment).where(
-            UserStationAssignment.user_id == user.id, UserStationAssignment.station_id == station.id,
-        )):
-            db.add(UserStationAssignment(user_id=user.id, station_id=station.id, is_primary=True))
+        if station:
+            existing = db.scalar(select(UserStationAssignment).where(
+                UserStationAssignment.user_id == user.id,
+                UserStationAssignment.station_id == station.id,
+            ))
+            if not existing:
+                db.add(UserStationAssignment(user_id=user.id, station_id=station.id, is_primary=True))
+                db.flush()
     supervisor = db.scalar(select(User).where(User.email == "supervisor@fueltrack.local"))
     if supervisor:
         for station in stations:
-            if not db.scalar(select(UserStationAssignment).where(
+            existing = db.scalar(select(UserStationAssignment).where(
                 UserStationAssignment.user_id == supervisor.id,
                 UserStationAssignment.station_id == station.id,
-            )):
+            ))
+            if not existing:
                 db.add(UserStationAssignment(
                     user_id=supervisor.id,
                     station_id=station.id,
                     is_primary=station.id == stations[0].id,
                 ))
-    if not db.scalar(select(Vehicle).where(Vehicle.plate == "SYN-001")):
-        db.add_all([
-            Vehicle(plate="SYN-001", institution_id=institution.id, vehicle_type="Camioneta",
-                    internal_code="DEMO-001", b_sisa_code="BSISA-SYN-001", synthetic_make_model="Modelo Sintético A",
-                    synthetic_year=2022, rfid_uid="RFID-DEMO-001", rfid_enabled=True),
-            Vehicle(plate="SYN-002", institution_id=institution.id, vehicle_type="Sedán",
-                    internal_code="DEMO-002", b_sisa_code="BSISA-SYN-002", synthetic_make_model="Modelo Sintético B",
-                    synthetic_year=2023, rfid_enabled=False),
-        ])
+                db.flush()
+    # UID reales leídos del hardware PN532/ESP32
+    vehicles_seed = [
+        ("SYN-001", "Camioneta", "DEMO-001", "Modelo Sintético A", 2022, "D0:9B:E2:5F", True),
+        ("SYN-002", "Sedán",     "DEMO-002", "Modelo Sintético B", 2023, "D0:89:22:5F", True),
+        ("SYN-003", "Camioneta", "DEMO-003", "Modelo Sintético C", 2021, "CC:21:6B:06", True),
+    ]
+    for plate, v_type, code, make, year, uid, rfid_on in vehicles_seed:
+        v = db.scalar(select(Vehicle).where(Vehicle.plate == plate))
+        if not v:
+            db.add(Vehicle(
+                plate=plate, institution_id=institutions[0].id, vehicle_type=v_type,
+                internal_code=code, b_sisa_code=f"BSISA-{plate}",
+                synthetic_make_model=make, synthetic_year=year,
+                rfid_uid=uid, rfid_enabled=rfid_on,
+            ))
+        else:
+            v.rfid_uid = uid
+            v.rfid_enabled = rfid_on
     db.commit()
 
 
@@ -299,7 +318,7 @@ def list_vehicles(q: str | None = None, page: int = Query(1, ge=1), page_size: i
     # restricted by the authenticated station and fuel authorization.
     query = select(Vehicle).order_by(Vehicle.plate)
     if q:
-        query = query.where(Vehicle.plate.ilike(f"%{q.upper()}%"))
+        query = query.where(Vehicle.plate.ilike(contains_pattern(q.upper()), escape="\\"))
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
     items = [{"id": x.id, "plate": x.plate, "vehicle_type": x.vehicle_type, "internal_code": x.internal_code,
@@ -312,6 +331,55 @@ def list_vehicles(q: str | None = None, page: int = Query(1, ge=1), page_size: i
 @app.post("/api/vehicles", status_code=201)
 def create_vehicle(_: VehicleIn, user: User = Depends(current_user)):
     raise HTTPException(403, "Los vehículos provienen del padrón sintético B-SISA; ningún rol puede crearlos")
+
+
+@app.get("/api/vehicles/{vehicle_id}/summary")
+def vehicle_summary(vehicle_id: UUID, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    vehicle = db.get(Vehicle, vehicle_id)
+    if not vehicle:
+        raise HTTPException(404, "Vehículo no encontrado")
+    if user.role != "ADMIN" and vehicle.institution_id != user.institution_id:
+        raise HTTPException(403, "Acceso denegado")
+        
+    recent = db.scalars(
+        select(Operation).where(Operation.vehicle_id == vehicle.id)
+        .order_by(Operation.occurred_at.desc()).limit(10)
+    ).all()
+    recent_ops = [
+        {"occurred_at": op.occurred_at, "station": op.station.name,
+         "fuel_type": op.fuel_type.name, "quantity_liters": float(op.quantity_liters)}
+        for op in recent
+    ]
+
+    active_alerts = db.scalars(
+        select(Alert).where(Alert.vehicle_id == vehicle.id)
+        .order_by(Alert.created_at.desc()).limit(10)
+    ).all()
+    alert_list = [{"code": a.code, "severity": a.severity, "message": a.message}
+                  for a in active_alerts]
+
+    if not vehicle.is_active:
+        status, message = "RESTRICTED", "Vehículo restringido"
+    elif vehicle.rfid_enabled:
+        status, message = "AUTHORIZED", "Vehículo autorizado"
+    else:
+        status, message = "OBSERVED", "Vehículo observado (RFID no habilitado)"
+
+    return {
+        "status": status,
+        "message": message,
+        "vehicle": {
+            "plate": vehicle.plate,
+            "rfid_uid": vehicle.rfid_uid,
+            "vehicle_type": vehicle.vehicle_type,
+            "synthetic_make_model": vehicle.synthetic_make_model,
+            "synthetic_year": vehicle.synthetic_year,
+            "is_active": vehicle.is_active,
+            "rfid_enabled": vehicle.rfid_enabled,
+        },
+        "recent_operations": recent_ops,
+        "alerts": alert_list,
+    }
 
 
 @app.get("/api/stations")
@@ -424,25 +492,6 @@ def resolve_session_station(user: User, db: Session) -> Station:
     return station
 
 
-def notify_priority_alert(vehicle: Vehicle, reasons: list[str]):
-    if not settings.smtp_host or not settings.alert_recipient:
-        return
-    message = EmailMessage()
-    message["Subject"] = f"FuelTrack: alerta prioritaria para {vehicle.plate}"
-    message["From"] = settings.smtp_user or "fueltrack@localhost"
-    message["To"] = settings.alert_recipient
-    message.set_content("Alerta sintética de FuelTrack:\n" + "\n".join(reasons))
-    try:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=8) as server:
-            server.starttls()
-            if settings.smtp_user and settings.smtp_password:
-                server.login(settings.smtp_user, settings.smtp_password)
-            server.send_message(message)
-    except (OSError, smtplib.SMTPException):
-        # SMTP is optional and must never make a fuel operation fail.
-        return
-
-
 @app.post("/api/operations", status_code=201)
 def create_operation(data: OperationIn, db: Session = Depends(get_db), user: User = Depends(require_roles("OPERATOR"))):
     station = resolve_session_station(user, db)
@@ -478,7 +527,8 @@ def create_operation(data: OperationIn, db: Session = Depends(get_db), user: Use
                          operation_id=entity.id, case_id=case.id, code=code,
                          severity="CRITICAL" if priority == "URGENT" else "WARNING", message=reason))
         if priority == "URGENT":
-            notify_priority_alert(vehicle, [reason for _, reason in reasons])
+            recipients = collect_alert_recipients(db, settings, user.institution_id)
+            send_priority_alert(settings, vehicle, [reason for _, reason in reasons], recipients)
     audit(db, user, "CREATE", "Operation", entity.id, {"station_id": str(station.id), "alert": bool(reasons)})
     db.commit()
     return {"id": entity.id, "station_id": station.id, "requires_review": bool(reasons),
@@ -497,13 +547,19 @@ def analyze_operation(operation: Operation, db: Session):
         Operation.occurred_at <= operation.occurred_at,
     )).all()
     if window_4h:
-        reasons.append(("SHORT_INTERVAL", "Existe un carguío previo del vehículo dentro de las últimas 4 horas."))
+        closest_op = max(window_4h, key=lambda o: o.occurred_at)
+        delta = operation.occurred_at - closest_op.occurred_at
+        hours, remainder = divmod(delta.total_seconds(), 3600)
+        minutes = remainder // 60
+        time_str = f"{int(hours)}h {int(minutes)}min" if hours > 0 else f"{int(minutes)}min"
+        reasons.append(("SHORT_INTERVAL", f"Existe un carguío previo hace exactamente {time_str}."))
     window_24h = db.scalars(select(Operation).where(
         Operation.vehicle_id == operation.vehicle_id,
+        Operation.id != operation.id,
         Operation.occurred_at >= operation.occurred_at - timedelta(hours=24),
         Operation.occurred_at <= operation.occurred_at,
     )).all()
-    if len({x.station_id for x in window_24h}) >= 2:
+    if len({x.station_id for x in window_24h} | {operation.station_id}) >= 2:
         reasons.append(("MULTI_STATION", "El vehículo utilizó más de una estación durante las últimas 24 horas."))
     if len(window_24h) + 1 >= 3:
         reasons.append(("THIRD_FUELING", "Tercer carguío o posterior en 24 horas: revisión prioritaria."))
@@ -647,6 +703,131 @@ def list_alerts(page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=
     return page_response([{"id": x.id, "code": x.code, "severity": x.severity, "message": x.message,
                           "station_id": x.station_id, "vehicle_id": x.vehicle_id, "case_id": x.case_id,
                           "is_read": x.is_read, "created_at": x.created_at} for x in rows], total, page, page_size)
+
+
+def _process_rfid(uid_norm, station_code, device_id, db, station, log_audit=True):
+    # 3. Buscar el vehículo comparando UID normalizado
+    vehicle = db.scalar(select(Vehicle).where(
+        func.upper(Vehicle.rfid_uid) == uid_norm
+    ))
+
+    # 4. Registrar la lectura en auditoría
+    if log_audit:
+        audit(db, None, "RFID_READ", "Vehicle",
+              entity_id=str(vehicle.id) if vehicle else None,
+              details={"rfid_uid": uid_norm, "station_code": station_code,
+                       "device_id": device_id, "found": vehicle is not None},
+              institution_id=station.institution_id)
+        db.commit()
+
+    if not vehicle:
+        return {"status": "UNKNOWN", "message": "Tarjeta desconocida",
+                "vehicle": None, "allowed_fuels": [], "recent_operations": [], "alerts": []}
+
+    # 5. Determinar el estado del vehículo
+    if not vehicle.is_active:
+        rfid_status, rfid_message = "RESTRICTED", "Vehículo restringido"
+    elif vehicle.rfid_enabled:
+        rfid_status, rfid_message = "AUTHORIZED", "Vehículo autorizado"
+    else:
+        rfid_status, rfid_message = "OBSERVED", "Vehículo observado (RFID no habilitado)"
+
+    # 6. Combustibles autorizados en esa estación
+    auth_rows = db.scalars(select(StationFuelAuthorization).where(
+        StationFuelAuthorization.station_id == station.id,
+        StationFuelAuthorization.is_active.is_(True),
+    )).all()
+    allowed_fuels = [{"code": r.fuel_type.code, "name": r.fuel_type.name} for r in auth_rows]
+
+    # 7. Historial reciente del vehículo (últimas 5 operaciones)
+    recent = db.scalars(
+        select(Operation).where(Operation.vehicle_id == vehicle.id)
+        .order_by(Operation.occurred_at.desc()).limit(5)
+    ).all()
+    recent_ops = [
+        {"occurred_at": op.occurred_at, "station": op.station.name,
+         "fuel_type": op.fuel_type.name, "quantity_liters": float(op.quantity_liters)}
+        for op in recent
+    ]
+
+    # 8. Alertas activas del vehículo (no leídas)
+    active_alerts = db.scalars(
+        select(Alert).where(Alert.vehicle_id == vehicle.id, Alert.is_read.is_(False))
+        .order_by(Alert.created_at.desc()).limit(5)
+    ).all()
+    alert_list = [{"code": a.code, "severity": a.severity, "message": a.message}
+                  for a in active_alerts]
+
+    return {
+        "status": rfid_status,
+        "message": rfid_message,
+        "vehicle": {
+            "plate": vehicle.plate,
+            "rfid_uid": vehicle.rfid_uid,
+            "vehicle_type": vehicle.vehicle_type,
+            "synthetic_make_model": vehicle.synthetic_make_model,
+            "synthetic_year": vehicle.synthetic_year,
+            "is_active": vehicle.is_active,
+            "rfid_enabled": vehicle.rfid_enabled,
+        },
+        "allowed_fuels": allowed_fuels,
+        "recent_operations": recent_ops,
+        "alerts": alert_list,
+    }
+
+@app.post("/api/rfid/read")
+def rfid_read(data: RfidReadIn, db: Session = Depends(get_db)):
+    """Recibe el UID leído por el PN532/ESP32, busca el vehículo en el padrón
+    sintético y devuelve la información al operador. No crea operaciones.
+    La lectura queda registrada en la bitácora de auditoría.
+    """
+    uid_norm = data.rfid_uid.upper().replace("-", ":").strip()
+    station = db.scalar(select(Station).where(
+        func.upper(Station.code) == data.station_code.upper()
+    ))
+    if not station:
+        return {"status": "UNKNOWN", "message": "Estación no encontrada",
+                "vehicle": None, "allowed_fuels": [], "recent_operations": [], "alerts": []}
+    return _process_rfid(uid_norm, data.station_code, data.device_id, db, station, log_audit=True)
+
+@app.get("/api/rfid/latest")
+def rfid_latest(since: int = 0, db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Endpoint para que el frontend haga polling de las últimas lecturas 
+    del hardware real sin registrar auditorías duplicadas."""
+    if not user.fixed_station_id:
+        return {"has_new": False}
+        
+    station = db.scalar(select(Station).where(Station.id == user.fixed_station_id))
+    if not station:
+        return {"has_new": False}
+        
+    since_dt = datetime.fromtimestamp(since / 1000.0, tz=timezone.utc)
+    
+    latest_log = db.scalar(
+        select(AuditLog)
+        .where(
+            AuditLog.action == "RFID_READ",
+            AuditLog.institution_id == user.institution_id,
+            AuditLog.created_at > since_dt
+        )
+        .order_by(AuditLog.created_at.desc())
+        .limit(1)
+    )
+    
+    if not latest_log:
+        return {"has_new": False}
+        
+    details = json.loads(latest_log.details)
+    if details.get("station_code") != station.code:
+        return {"has_new": False}
+        
+    uid_norm = details.get("rfid_uid")
+    device_id = details.get("device_id")
+    
+    result = _process_rfid(uid_norm, station.code, device_id, db, station, log_audit=False)
+    result["has_new"] = True
+    result["timestamp"] = int(latest_log.created_at.timestamp() * 1000)
+    return result
 
 
 @app.get("/api/audit")

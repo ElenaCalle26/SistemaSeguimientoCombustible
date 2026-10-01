@@ -1,11 +1,17 @@
 from datetime import datetime
 from uuid import UUID
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from .email_policy import parse_account_email
 
 
 class Login(BaseModel):
     email: str
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return parse_account_email(value)
 
 
 class Token(BaseModel):
@@ -32,6 +38,11 @@ class UserCreate(BaseModel):
     role: str
     institution_id: UUID | None = None
     fixed_station_id: UUID | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return parse_account_email(value)
 
 
 class VehicleIn(BaseModel):
@@ -91,3 +102,10 @@ class Page(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class RfidReadIn(BaseModel):
+    """Payload enviado por el ESP32 al leer una tarjeta NFC/RFID con el PN532."""
+    rfid_uid: str = Field(min_length=1, max_length=80)
+    station_code: str = Field(min_length=2, max_length=30)
+    device_id: str = Field(min_length=1, max_length=80)
