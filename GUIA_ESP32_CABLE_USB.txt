@@ -1,0 +1,122 @@
+================================================================================
+GUIA DE CONFIGURACION: ESP32 POR CABLE USB (SIN DEPENDER DE WI-FI)
+Proyecto: Sistema FuelTrack - Control de Combustible
+================================================================================
+
+Esta alternativa permite conectar el lector RFID/NFC mediante el ESP32
+conectado directamente por cable USB a la computadora (Windows o Linux Mint),
+eliminando cualquier fallo por caidas de red, contraseñas o caida de DNS.
+
+--------------------------------------------------------------------------------
+PARTE 1: CODIGO PARA EL ESP32 (Arduino IDE)
+--------------------------------------------------------------------------------
+Copia este codigo en Arduino IDE y subelo al ESP32 por el cable USB:
+
+```cpp
+#include <SPI.h>
+#include <Adafruit_PN532.h>
+
+// ---------------- CONFIGURACION ----------------
+const String stationCode = "EST-001";
+const String deviceId    = "ESP32-HARDWARE-USB";
+
+// ---------------- PINES SPI ----------------
+#define PN532_SCK  18
+#define PN532_MISO 19
+#define PN532_MOSI 23
+#define PN532_SS   5
+
+Adafruit_PN532 nfc(PN532_SCK, PN532_MISO, PN532_MOSI, PN532_SS);
+
+bool isNfcAlive = false;
+
+void initPN532() {
+  nfc.begin();
+  uint32_t versiondata = nfc.getFirmwareVersion();
+  
+  if (!versiondata) {
+    Serial.println("[LOG] Error: PN532 no detectado. Revisa conexiones SPI.");
+    isNfcAlive = false;
+  } else {
+    Serial.print("[LOG] PN532 Conectado. Firmware: ");
+    Serial.print((versiondata>>16) & 0xFF, DEC); 
+    Serial.print('.'); 
+    Serial.println((versiondata>>8) & 0xFF, DEC);
+    
+    nfc.SAMConfig();
+    isNfcAlive = true;
+    Serial.println("[LOG] Lector listo por CABLE USB. Esperando tarjeta RFID...");
+  }
+}
+
+void setup(void) {
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("\n[LOG] ESP32 Modo Cable USB Iniciado.");
+  initPN532();
+}
+
+void loop(void) {
+  if (!isNfcAlive) {
+    Serial.println("[LOG] Intentando reconectar PN532...");
+    initPN532();
+    delay(2000); 
+    return; 
+  }
+
+  uint8_t success;
+  uint8_t uid[] = { 0, 0, 0, 0, 0, 0, 0 };
+  uint8_t uidLength;
+
+  success = nfc.readPassiveTargetID(PN532_MIFARE_ISO14443A, uid, &uidLength, 500);
+
+  if (success) {
+    String uidString = "";
+    for (uint8_t i = 0; i < uidLength; i++) {
+      if (uid[i] < 0x10) uidString += "0";
+      uidString += String(uid[i], HEX);
+      if (i < uidLength - 1) uidString += ":";
+    }
+    uidString.toUpperCase();
+
+    // Enviar el JSON directamente por cable USB
+    String jsonPayload = "{\"rfid_uid\":\"" + uidString + "\",\"station_code\":\"" + stationCode + "\",\"device_id\":\"" + deviceId + "\"}";
+    Serial.println(jsonPayload);
+    
+    delay(2000); 
+  } else {
+    uint32_t checkVersion = nfc.getFirmwareVersion();
+    if (!checkVersion) {
+      Serial.println("[LOG] Se desconecto el cable del PN532.");
+      isNfcAlive = false; 
+    }
+  }
+}
+```
+
+--------------------------------------------------------------------------------
+PARTE 2: EJECUCION EN LINUX MINT O WINDOWS
+--------------------------------------------------------------------------------
+
+1. En la laptop, asegúrate de tener levantado el sistema Docker:
+   docker compose up -d
+
+2. Instala las librerías necesarias para el puente serial:
+   pip install pyserial requests
+   (O en Linux: sudo apt install python3-serial python3-requests)
+
+3. En Linux Mint, dar permisos al puerto USB si es necesario:
+   sudo usermod -a -G dialout $USER
+   (O simplemente correr el script con sudo)
+
+4. Ejecutar el puente USB:
+   python3 puente_usb.py
+
+   El script detecta automáticamente el puerto (/dev/ttyUSB0 en Linux o COM* en Windows).
+   Si deseas pasar un puerto específico:
+   python3 puente_usb.py /dev/ttyUSB0
+
+5. Acerca la tarjeta RFID al sensor PN532:
+   Verás la lectura instantánea en la terminal y el despacho se actualizará
+   en tiempo real en el frontend web (http://localhost:5173).
+================================================================================
